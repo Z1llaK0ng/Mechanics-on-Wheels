@@ -75,12 +75,13 @@ def identifyFile(a, data):
 # def identifyDB():
 #     #uses a database to find info on the car
 
+def fileInput():
 
-root = tk.Tk()
-root.withdraw()
+    root = tk.Tk()
+    root.withdraw()
 
-# Open file browser
-file_path = filedialog.askopenfilename(title="Select a file")
+    # Open file browser
+    file_path = filedialog.askopenfilename(title="Select a file")
 
-data = file_path
-print(identifyFile('wxy',data))
+    data = file_path
+    return data
