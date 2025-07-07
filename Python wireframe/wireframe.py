@@ -31,9 +31,12 @@ def identify():
             identifyFile(d, e)
         
         else:
-            read()
+            d = read()
             
 
     elif access == 'no':
-        read()
+        d = read()
+        e = fileInput()
+        
+
         #use the list from read() in the identifier code
