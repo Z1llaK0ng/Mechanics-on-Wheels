@@ -8,7 +8,9 @@
 
 #Also allows to identify popular problems based on the symptoms given and the other identifiers in the list above.
 
-from identifier import identifyFile
+from identifier import identifyFile, fileInput
+
+
 def identify():
     def read():
         carDeets = []
@@ -24,7 +26,7 @@ def identify():
     access = input('Is the VIN available (yes/no)')
     if access == 'yes':
         d = input("VIN(or Chassis number): ") #takes in the vin of a car
-        e = "2.0\afterlife\Capstone\\testFile.csv"
+        e = fileInput()
         if 5 <= len(d) <= 14:
             identifyFile(d, e)
         
