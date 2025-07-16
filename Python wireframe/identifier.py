@@ -61,37 +61,41 @@ def identifyFile(a, data):
 
 
 
-    if re.match(registry, a):
-        def dataFound(a):
-            b = createDict(listVIN, dictValue)
-            dMatch = {}
-            for key, value in b.items():
-                if a in value:
-                    dMatch[key] = b[key]
-            return dMatch
-            
-        neccData = dataFound(a)
-        return neccData
+    
 
 
     
-    elif isinstance(a, str) and len(a)>= 5:
-        def dataFound(a):
-            b = createDict(listVIN, dictValue)
-            dMatch = {}
-            for key in b:
-                if a in str(key):
-                    dMatch[key] = b[key]
-            return dMatch 
+    if isinstance(a, str): #checks vin number
+        if re.match(registry, a): #checks for licence plate
+            def dataFound(a):
+                b = createDict(listVIN, dictValue)
+                dMatch = {}
+                for key, value in b.items():
+                    if a in value:
+                        dMatch[key] = b[key]
+                return dMatch
+            
+            neccData = dataFound(a)
+            return neccData
+        
+        elif len(a)>5:
+            def dataFound(a):
+                b = createDict(listVIN, dictValue)
+                dMatch = {}
+                for key in b:
+                    if a in str(key):
+                        dMatch[key] = b[key]
+                return dMatch 
 
-        neccData = dataFound(a)
+            neccData = dataFound(a)
 
-        return neccData
+            return neccData
     
     elif len(a)<5:
             return 'Not enough data to search for enough to search for'
 
     elif isinstance(a, list):
+
         return neccData
         
     else:

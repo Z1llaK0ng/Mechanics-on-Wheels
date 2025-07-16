@@ -36,11 +36,11 @@ def identify():
             
 
     elif access == 'no':
-        saccess = input('Is the License Plate visible (yes/no): ')
+        saccess = input('Is the License Plate visible (yes/no): ') #for when vin is not found
         if saccess.lower() == 'yes':
-            d = input("License Number (XX ####-YY or XX ####-Y): ")
+            d = input("License Number (XX ####-YY or XX ####-Y): ") 
             e = fileInput()
-            return identifyFile(d.upper(), e)
+            return identifyFile(d.upper(), e) #.upper(), so that the value checker works
         else:
             f = read()
             g = fileInput()
