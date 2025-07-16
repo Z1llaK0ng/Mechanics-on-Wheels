@@ -26,8 +26,9 @@ def identify():
     access = input('Is the VIN available (yes/no)')
     if access == 'yes':
         d = input("VIN(or Chassis number): ") #takes in the vin of a car
-        e = fileInput()
-        if 5 <= len(d) <= 14:
+        e = fileInput() #this is file imput
+        # if 5 <= len(d) <= 14:
+        if len(d) >= 5 and len(d) <= 14:
             identifyFile(d, e)
         
         else:
