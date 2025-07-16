@@ -74,6 +74,7 @@ def identifyFile(a, data):
         return 'Not  data to search for enough to search for'
 
     elif isinstance(a, list):
+        
         return neccData
         
     else:
@@ -83,13 +84,17 @@ def identifyFile(a, data):
 # def identifyDB():
 #     #uses a database to find info on the car
 
-def fileInput():
+def fileInput(): #this is the file input
 
     root = tk.Tk()
-    root.withdraw()
+    # root.withdraw()
 
+    root.update()
     # Open file browser
     file_path = filedialog.askopenfilename(title="Select a file")
+    root.destroy()
 
     data = file_path
     return data
+
+fileInput()
