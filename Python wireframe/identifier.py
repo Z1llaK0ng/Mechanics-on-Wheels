@@ -44,7 +44,7 @@ def identifyFile(a, data):
 
     dictValue = valuesList(listBrand, listModel, listYear)   
 
-    def createDict(x, y):
+    def createDict(x, y): #x = vin list, y = dictValue
         dataDict = {}
         dataDiff = len(x) - len(y)
         if dataDiff == 0:
@@ -57,8 +57,16 @@ def identifyFile(a, data):
         elif dataDiff < 0:
             return f'{abs(dataDiff)} Data is extra'
 
-    neccData = createDict(listVIN, dictValue)
-        
+    def dataFound(a):
+        b = createDict(listVIN, dictValue)
+        match = {}
+        for key in b:
+            if a in str(key):
+                match[key] = b[key]
+        return match 
+
+    neccData = dataFound(a)
+
     if isinstance(a, str) and len(a)>= 5:
         return neccData
     
