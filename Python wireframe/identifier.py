@@ -1,6 +1,6 @@
 #identifier function uses the input in the wireframe to find a match or groups of matches in the connected database
 
-import os
+import os, re
 import tkinter as tk
 from tkinter import filedialog
 
@@ -9,8 +9,9 @@ def identifyFile(a, data):
     listBrand = []
     listModel = []
     listYear = []
+    listRegistry = []
     #uses a file with data to find info on the car
-    
+    registry = r'^[A-Z]{2}\s\d{4}-(\d{2}|[A-Z])$'
     if os.path.exists(data):
         try:
             with open(data, 'r') as file:
@@ -29,20 +30,21 @@ def identifyFile(a, data):
         listBrand.append(values[1])
         listModel.append(values[2])
         listYear.append(values[3])
+        listRegistry.append(values[4])
         #split and store the data.
 
-    def valuesList(x,y,z):
+    def valuesList(w,x,y,z):
         carDetails = []
-        if len(x) == len(y) == len(z):
+        if len(w) == len(x) == len(y) == len(z):
             for i in range(len(x)):
-                deet = [x[i], y[i], z[i]]
+                deet = [w[i],x[i], y[i], z[i]]
                 carDetails.append(deet)
             return carDetails
         
         else:
             return 'Data is missing'
 
-    dictValue = valuesList(listBrand, listModel, listYear)   
+    dictValue = valuesList(listBrand, listModel, listYear, listRegistry)   
 
     def createDict(x, y): #x = vin list, y = dictValue
         dataDict = {}
@@ -57,24 +59,39 @@ def identifyFile(a, data):
         elif dataDiff < 0:
             return f'{abs(dataDiff)} Data is extra'
 
-    def dataFound(a):
-        b = createDict(listVIN, dictValue)
-        match = {}
-        for key in b:
-            if a in str(key):
-                match[key] = b[key]
-        return match 
 
-    neccData = dataFound(a)
 
-    if isinstance(a, str) and len(a)>= 5:
+    if re.match(registry, a):
+        def dataFound(a):
+            b = createDict(listVIN, dictValue)
+            dMatch = {}
+            for key, value in b.items():
+                if a in value:
+                    dMatch[key] = b[key]
+            return dMatch
+            
+        neccData = dataFound(a)
+        return neccData
+
+
+    
+    elif isinstance(a, str) and len(a)>= 5:
+        def dataFound(a):
+            b = createDict(listVIN, dictValue)
+            dMatch = {}
+            for key in b:
+                if a in str(key):
+                    dMatch[key] = b[key]
+            return dMatch 
+
+        neccData = dataFound(a)
+
         return neccData
     
-    elif isinstance(a, str) and len(a)<5:
-        return 'Not  data to search for enough to search for'
+    elif len(a)<5:
+            return 'Not enough data to search for enough to search for'
 
     elif isinstance(a, list):
-        
         return neccData
         
     else:
@@ -97,4 +114,12 @@ def fileInput(): #this is the file input
     data = file_path
     return data
 
-fileInput()
+x = fileInput()
+y = identifyFile('R9FGBTL4VA63EUPNM', x)
+z = identifyFile('UE 5720-14', x)
+
+if y == z:
+    print('Calm down it is working')
+    print(y, z)
+else:
+    print('wake up nigga check it again')
