@@ -24,20 +24,27 @@ def identify():
         return carDeets
     
     access = input('Is the VIN available (yes/no): ')
-    if access == 'yes':
+    if access.lower() == 'yes':
         d = input("VIN(or Chassis number): ") #takes in the vin of a car
         e = fileInput() #this is file imput
         # if 5 <= len(d) <= 14:
         if len(d) <= 17:
-            identifyFile(d, e)
+            return identifyFile(d, e)
         
         else:
             d = read()
             
 
     elif access == 'no':
-        d = read()
-        e = fileInput()
+        saccess = input('Is the License Plate visible (yes/no): ')
+        if saccess.lower() == 'yes':
+            d = input("License Number (XX ####-YY or XX ####-Y): ")
+            e = fileInput()
+            return identifyFile(d.upper(), e)
+        else:
+            f = read()
+            g = fileInput()
+            return identifyFile(f, g)
         #use the list from read() in the identifier code
 
 
