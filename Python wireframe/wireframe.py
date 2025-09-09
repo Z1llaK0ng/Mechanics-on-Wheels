@@ -22,11 +22,10 @@ def identify():
             carDeets.append(a,b,c)
         
         return carDeets
-    
+     e = fileInput() #this is file imput
     access = input('Is the VIN available (yes/no): ')
     if access.lower() == 'yes':
         d = input("VIN(or Chassis number): ") #takes in the vin of a car
-        e = fileInput() #this is file imput
         # if 5 <= len(d) <= 14:
         if len(d) <= 17:
             return identifyFile(d, e)
@@ -39,7 +38,6 @@ def identify():
         saccess = input('Is the License Plate visible (yes/no): ') #for when vin is not found
         if saccess.lower() == 'yes':
             d = input("License Number (XX ####-YY or XX ####-Y): ") 
-            e = fileInput()
             return identifyFile(d.upper(), e) #.upper(), so that the value checker works
         else:
             f = read()
