@@ -1,0 +1,28 @@
+{
+  "include": [
+    "app"
+  ],
+  "exclude": [
+    "**/__pycache__",
+    "**/node_modules"
+  ],
+  "pythonVersion": "3.11",
+  "pythonPlatform": "Windows",
+  "extraPaths": [
+    ".",
+    "venv/Lib/site-packages"
+  ],
+  "executionEnvironments": [
+    {
+      "root": ".",
+      "extraPaths": [
+        ".",
+        "venv/Lib/site-packages"
+      ],
+      "pythonVersion": "3.11"
+    }
+  ],
+  "venvPath": "C:/Users/USER/OneDrive - Ashesi University/Desktop/Ashesi stuff/E-Commerce/Mechanics-on-Wheels/backend",
+  "venv": "venv",
+  "pythonPath": "C:/Users/USER/OneDrive - Ashesi University/Desktop/Ashesi stuff/E-Commerce/Mechanics-on-Wheels/backend/venv/Scripts/python.exe"
+}
