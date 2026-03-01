@@ -3,40 +3,38 @@ from typing import Optional
 
 
 class VehicleBase(BaseModel):
-    """Base schema for Vehicle."""
-    registry: str  # License plate
+    registry: str   # License plate
     vin: str
-    company: str  # Manufacturer
-    brand: str    # Model
+    company: str    # Manufacturer
+    brand: str      # Model
 
 
 class VehicleCreate(VehicleBase):
-    """Schema for creating/registering a vehicle."""
-    owner_id: Optional[int] = None
+    owner_id: Optional[str] = None   # Appwrite $id of owner document
 
 
 class VehicleUpdate(BaseModel):
-    """Schema for updating vehicle."""
     company: Optional[str] = None
     brand: Optional[str] = None
-    owner_id: Optional[int] = None
+    owner_id: Optional[str] = None
     active_status: Optional[bool] = None
 
 
 class VehicleResponse(VehicleBase):
-    """Schema for vehicle response."""
     active_status: bool
-    owner_id: Optional[int] = None
-    
-    class Config:
-        from_attributes = True
+    owner_id: Optional[str] = None
+
+    # Also expose make/model aliases the frontend uses
+    make: Optional[str] = None
+    model: Optional[str] = None
+    year: Optional[int] = None
+
+    model_config = {"from_attributes": True}
 
 
 class VehicleIdentifyRequest(BaseModel):
-    """Schema for vehicle identification request."""
-    identifier: str  # VIN or license plate
+    identifier: str   # VIN or license plate
 
 
 class VehicleIdentifyResponse(VehicleResponse):
-    """Schema for vehicle identification response."""
     pass

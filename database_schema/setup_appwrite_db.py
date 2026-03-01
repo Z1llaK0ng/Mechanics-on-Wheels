@@ -18,6 +18,11 @@ import time
 from dotenv import load_dotenv
 from appwrite.client import Client
 from appwrite.services.databases import Databases
+try:
+    from appwrite.services.tables_db import TablesDB  # SDK >= 1.8.0
+    USE_TABLES_DB = True
+except ImportError:
+    USE_TABLES_DB = False                             # SDK < 1.8.0
 from appwrite.id import ID
 
 # ── Load credentials ────────────────────────────────────────────────────────
@@ -27,8 +32,8 @@ ENDPOINT   = os.environ["APPWRITE_ENDPOINT"]
 PROJECT_ID = os.environ["APPWRITE_PROJECT_ID"]
 API_KEY    = os.environ["APPWRITE_API_KEY"]
 
-DB_ID   = "mechanics_on_wheels"
-DB_NAME = "Mechanics on Wheels"
+DB_ID   = "global-erp"          # Appwrite IDs: lowercase, hyphens only — no spaces or slashes
+DB_NAME = "Global Database/ERP"  # Display name (can have any characters)
 
 # ── Appwrite client ──────────────────────────────────────────────────────────
 client = Client()
@@ -37,16 +42,52 @@ client.set_project(PROJECT_ID)
 client.set_key(API_KEY)
 
 db = Databases(client)
+tables_db = TablesDB(client) if USE_TABLES_DB else None
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
-def create_db():
+def resolve_db_id():
+    """
+    Free Appwrite plan = 1 database max.
+    Strategy:
+      1. If DB_ID already exists → use it.
+      2. Else try to create it.
+      3. If creation fails with plan-limit → find the existing database and use its ID.
+    Returns the database ID that will be used for all collections.
+    """
+    global DB_ID
+
+    # 1. Check if our target DB already exists
     try:
-        result = db.create(database_id=DB_ID, name=DB_NAME)
+        db.get(DB_ID)
+        print(f"ℹ️  Database '{DB_ID}' already exists, reusing it.")
+        return DB_ID
+    except Exception:
+        pass  # doesn't exist yet, try to create
+
+    # 2. Try to create
+    try:
+        if USE_TABLES_DB and tables_db:
+            tables_db.create(DB_ID, DB_NAME)
+        else:
+            db.create(DB_ID, DB_NAME)
         print(f"✅ Database created: {DB_NAME}")
-        return result
+        return DB_ID
     except Exception as e:
-        if "already exists" in str(e).lower() or "409" in str(e):
+        err = str(e)
+        if "maximum number" in err.lower() or "limit" in err.lower() or "403" in err:
+            # 3. Plan limit hit — reuse the first existing database
+            print("⚠️  Plan limit reached. Looking for an existing database to reuse...")
+            existing = db.list()
+            databases = existing.get("databases", [])
+            if not databases:
+                raise RuntimeError("No databases found and cannot create one. Check your Appwrite plan.") from e
+            first = databases[0]
+            DB_ID = first["$id"]
+            print(f"ℹ️  Reusing existing database: '{first['name']}' (ID: {DB_ID})")
+            return DB_ID
+        elif "already exists" in err.lower() or "409" in err:
             print(f"ℹ️  Database already exists, continuing...")
+            return DB_ID
         else:
             raise
 
@@ -136,15 +177,18 @@ def setup():
     print(f"   Endpoint  : {ENDPOINT}")
     print(f"   Project ID: {PROJECT_ID}\n")
 
-    create_db()
+    resolve_db_id()
     time.sleep(1)
 
     # ── 1. SHOP ─────────────────────────────────────────────────────────────
     print("\n[1/7] shop")
     col("shop", "shop")
-    attr_str("shop", "shop_name", size=200, required=True)
-    attr_str("shop", "location",  size=300, required=True)
-    index("shop", "idx_shop_name_unique", "unique", ["shop_name"])
+    attr_str("shop", "shop_name",       size=200, required=True)
+    attr_str("shop", "location",        size=300, required=True)
+    attr_str("shop", "email",           size=255, required=True)   # admin login email
+    attr_str("shop", "hashed_password", size=255, required=True)   # bcrypt hash
+    index("shop", "idx_shop_name_unique",  "unique", ["shop_name"])
+    index("shop", "idx_shop_email_unique", "unique", ["email"])
 
     # ── 2. SUBSCRIPTIONS ────────────────────────────────────────────────────
     print("\n[2/7] subscriptions")

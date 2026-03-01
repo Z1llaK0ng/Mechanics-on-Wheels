@@ -1,73 +1,64 @@
 from typing import List
-from fastapi import APIRouter, Depends
-from sqlalchemy.orm import Session
 
-from app.core.database import get_db
+from appwrite.query import Query
+from fastapi import APIRouter, Depends
+
+from app.core.appwrite_client import databases, DB_ID, COL_ACTIVE_SUBS, COL_SUBSCRIPTIONS
 from app.core.security import get_current_user
-from app.domain.mechanic import Mechanic
-from app.domain.active_sub import ActiveSub
-from app.domain.subscription import Subscription
-from app.domain.shop import Shop
 
 router = APIRouter(prefix="/subscriptions", tags=["Subscriptions"])
 
 
-class SubscriptionOut:
-    """Simple response schema for subscriptions."""
-    pass
-
-
 @router.get("/me")
-def get_my_subscriptions(
-    current_user: Mechanic = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
+def get_my_subscriptions(current_user: dict = Depends(get_current_user)):
     """
-    Get all active subscription modules for the current mechanic's shop.
-    Returns which modules the shop has paid for — used to gate PWA download.
+    Get active subscriptions for the current mechanic's shop.
+    Used to gate PWA download and feature access.
     """
-    active_subs = (
-        db.query(ActiveSub)
-        .filter(ActiveSub.shop_id == current_user.shop_id)
-        .all()
+    shop_id = current_user.get("shop_id", "")
+
+    active_subs = databases.list_documents(
+        database_id=DB_ID,
+        collection_id=COL_ACTIVE_SUBS,
+        queries=[Query.equal("shop_id", shop_id)]
     )
 
     result = []
-    for sub in active_subs:
-        subscription = db.query(Subscription).filter(
-            Subscription.subscription_id == sub.subscription_id
-        ).first()
+    for sub in active_subs.get("documents", []):
+        sub_id = sub["subscription_id"]
+        try:
+            subscription = databases.get_document(DB_ID, COL_SUBSCRIPTIONS, sub_id)
+        except Exception:
+            continue
 
-        if subscription:
-            result.append({
-                "id": sub.id,
-                "shop_id": sub.shop_id,
-                "subscription_id": sub.subscription_id,
-                "date_of_activation": sub.date_of_activation.isoformat(),
-                "subscription": {
-                    "subscription_id": subscription.subscription_id,
-                    "name": subscription.name,
-                    "payment_period": subscription.payment_period
-                }
-            })
+        result.append({
+            "id": sub["$id"],
+            "shop_id": sub["shop_id"],
+            "subscription_id": sub_id,
+            "date_of_activation": sub.get("date_of_activation", ""),
+            "subscription": {
+                "subscription_id": subscription["$id"],
+                "name": subscription["name"],
+                "payment_period": subscription["payment_period"],
+            },
+            # Frontend AppModule shape
+            "activeSince": sub.get("date_of_activation", ""),
+            "routeKey": subscription.get("name", "").lower().replace(" ", "-"),
+            "features": [],
+        })
 
     return result
 
 
 @router.get("/")
-def list_all_subscriptions(
-    current_user: Mechanic = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """
-    List all available subscription plans.
-    """
-    subscriptions = db.query(Subscription).all()
+def list_all_subscriptions(current_user: dict = Depends(get_current_user)):
+    """List all available subscription plans."""
+    result = databases.list_documents(database_id=DB_ID, collection_id=COL_SUBSCRIPTIONS)
     return [
         {
-            "subscription_id": s.subscription_id,
-            "name": s.name,
-            "payment_period": s.payment_period
+            "subscription_id": s["$id"],
+            "name": s["name"],
+            "payment_period": s["payment_period"],
         }
-        for s in subscriptions
+        for s in result.get("documents", [])
     ]

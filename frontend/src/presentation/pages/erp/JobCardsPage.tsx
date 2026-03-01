@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import apiClient from '../../infrastructure/api/client'
-import type { JobCard, JobCardCreate } from '../../domain/types'
+import apiClient from '../../../infrastructure/api/client'
+import type { JobCard, JobCardCreate } from '../../../domain/types'
 
 export default function JobCardsPage() {
     const qc = useQueryClient()

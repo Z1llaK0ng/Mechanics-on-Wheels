@@ -4,7 +4,6 @@ from datetime import datetime
 
 
 class JobCardBase(BaseModel):
-    """Base schema for Job Card."""
     vehicle_vin: str
     vehicle_registry: str
     parts_affected: str
@@ -12,24 +11,21 @@ class JobCardBase(BaseModel):
 
 
 class JobCardCreate(JobCardBase):
-    """Schema for creating a job card."""
     pass
 
 
 class JobCardUpdate(BaseModel):
-    """Schema for updating a job card."""
     parts_affected: Optional[str] = None
     details: Optional[str] = None
     status: Optional[str] = None
 
 
 class JobCardResponse(JobCardBase):
-    """Schema for job card response."""
-    job_card_id: int
-    upload_mechanic: int
+    """Appwrite uses string $id, not integer PKs."""
+    job_card_id: str          # maps to Appwrite $id
+    upload_mechanic: str
     status: str
-    created_at: datetime
-    updated_at: Optional[datetime] = None
-    
-    class Config:
-        from_attributes = True
+    created_at: str           # Appwrite returns ISO strings
+    updated_at: Optional[str] = None
+
+    model_config = {"from_attributes": True}

@@ -1,9 +1,9 @@
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
-import { useAuthStore } from '../../infrastructure/store/authStore'
-import { useModules } from '../hooks/useModules'
-import apiClient from '../../infrastructure/api/client'
-import type { JobCard } from '../../domain/types'
+import { useAuthStore } from '../../../infrastructure/store/authStore'
+import { useModules } from '../../hooks/useModules'
+import apiClient from '../../../infrastructure/api/client'
+import type { JobCard } from '../../../domain/types'
 
 export default function DashboardPage() {
     const mechanic = useAuthStore((s) => s.mechanic)

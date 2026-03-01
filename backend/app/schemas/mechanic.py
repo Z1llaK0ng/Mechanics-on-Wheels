@@ -3,20 +3,17 @@ from typing import Optional
 
 
 class MechanicBase(BaseModel):
-    """Base schema for Mechanic."""
     first_name: str
     last_name: str
     email: EmailStr
-    shop_id: int
+    shop_id: str    # Appwrite string $id
 
 
 class MechanicCreate(MechanicBase):
-    """Schema for creating a mechanic."""
     password: str
 
 
 class MechanicUpdate(BaseModel):
-    """Schema for updating a mechanic."""
     first_name: Optional[str] = None
     last_name: Optional[str] = None
     email: Optional[EmailStr] = None
@@ -24,15 +21,13 @@ class MechanicUpdate(BaseModel):
 
 
 class MechanicResponse(MechanicBase):
-    """Schema for mechanic response."""
-    id: int
+    id: str           # Appwrite $id
     active_status: bool
-    
-    class Config:
-        from_attributes = True  # Pydantic v2 (was orm_mode in v1)
+    full_name: Optional[str] = None
+
+    model_config = {"from_attributes": True}
 
 
 class MechanicLogin(BaseModel):
-    """Schema for mechanic login."""
     email: EmailStr
     password: str

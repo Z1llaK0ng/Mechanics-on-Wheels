@@ -1,5 +1,5 @@
-import { useModules } from '../hooks/useModules'
-import type { AppModule } from '../../domain/types'
+import { useModules } from '../../hooks/useModules'
+import type { AppModule } from '../../../domain/types'
 
 export default function ModulesPage() {
     const { data: modules, isLoading, isError } = useModules()

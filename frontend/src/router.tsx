@@ -1,29 +1,67 @@
 import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom'
-// import { useAuthStore } from './infrastructure/store/authStore' // re-enable with auth
-import LoginPage from './presentation/pages/LoginPage'
-import DashboardPage from './presentation/pages/DashboardPage'
-import ModulesPage from './presentation/pages/ModulesPage'
-import JobCardsPage from './presentation/pages/JobCardsPage'
-import VehiclesPage from './presentation/pages/VehiclesPage'
-import PWADownloadPage from './presentation/pages/PWADownloadPage'
+import { useAuthStore } from './infrastructure/store/authStore'
+import LoginPage from './presentation/pages/erp/LoginPage'
+import DashboardPage from './presentation/pages/erp/DashboardPage'
+import ModulesPage from './presentation/pages/erp/ModulesPage'
+import JobCardsPage from './presentation/pages/erp/JobCardsPage'
+import VehiclesPage from './presentation/pages/erp/VehiclesPage'
+import PWADownloadPage from './presentation/pages/erp/PWADownloadPage'
 import AppLayout from './presentation/components/AppLayout'
 
-// ─── Guard: AUTH BYPASSED for UI preview — revert before production ──────────
+// ── Shop Portal ───────────────────────────────────────────────────────────────
+import ShopLoginPage from './presentation/pages/shop/ShopLoginPage'
+import ShopRegisterPage from './presentation/pages/shop/ShopRegisterPage'
+import ShopMarketplacePage from './presentation/pages/shop/ShopMarketplacePage'
+import ShopSubscriptionPage from './presentation/pages/shop/ShopSubscriptionPage'
+import ShopSettingsPage from './presentation/pages/shop/ShopSettingsPage'
+import MechanicModulesPage from './presentation/pages/shop/MechanicModulesPage'
+import ShopLayout from './presentation/components/ShopLayout'
+import { useShopAuthStore } from './presentation/hooks/useShopAuth'
+
+// ─── ERP Guard ───────────────────────────────────────────────────────────────
 function PrivateRoute() {
-    return <Outlet /> // TODO: restore auth check below when done previewing
-    // const isAuthenticated = useAuthStore((s) => s.isAuthenticated)
-    // return isAuthenticated ? <Outlet /> : <Navigate to="/login" replace />
+    const isAuthenticated = useAuthStore((s) => s.isAuthenticated)
+    return isAuthenticated ? <Outlet /> : <Navigate to="/login" replace />
+}
+
+// ─── Shop Guard: real auth ────────────────────────────────────────────────────
+function ShopPrivateRoute({ requiredRole }: { requiredRole?: 'admin' | 'mechanic' }) {
+    const { isAuthenticated, user } = useShopAuthStore()
+    if (!isAuthenticated) return <Navigate to="/shop/login" replace />
+    if (requiredRole && user?.role !== requiredRole) return <Navigate to="/shop/login" replace />
+    return <Outlet />
 }
 
 export default function AppRouter() {
     return (
         <BrowserRouter>
             <Routes>
-                {/* Public */}
+                {/* ── Public ── */}
                 <Route path="/login" element={<LoginPage />} />
                 <Route path="/" element={<Navigate to="/dashboard" replace />} />
 
-                {/* Protected */}
+                {/* ── Shop Portal ── */}
+                <Route path="/shop" element={<Navigate to="/shop/login" replace />} />
+                <Route path="/shop/login" element={<ShopLoginPage />} />
+                <Route path="/shop/register" element={<ShopRegisterPage />} />
+
+                {/* Admin-only */}
+                <Route element={<ShopPrivateRoute requiredRole="admin" />}>
+                    <Route element={<ShopLayout />}>
+                        <Route path="/shop/marketplace" element={<ShopMarketplacePage />} />
+                        <Route path="/shop/subscriptions" element={<ShopSubscriptionPage />} />
+                        <Route path="/shop/settings" element={<ShopSettingsPage />} />
+                    </Route>
+                </Route>
+
+                {/* Mechanic-only */}
+                <Route element={<ShopPrivateRoute requiredRole="mechanic" />}>
+                    <Route element={<ShopLayout />}>
+                        <Route path="/shop/modules" element={<MechanicModulesPage />} />
+                    </Route>
+                </Route>
+
+                {/* ── ERP (auth bypassed for preview) ── */}
                 <Route element={<PrivateRoute />}>
                     <Route element={<AppLayout />}>
                         <Route path="/dashboard" element={<DashboardPage />} />
@@ -34,7 +72,7 @@ export default function AppRouter() {
                     </Route>
                 </Route>
 
-                {/* Fallback */}
+                {/* ── Fallback ── */}
                 <Route path="*" element={<Navigate to="/dashboard" replace />} />
             </Routes>
         </BrowserRouter>

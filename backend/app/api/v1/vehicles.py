@@ -1,178 +1,165 @@
 import re
 from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException, status, Query
-from sqlalchemy.orm import Session
 
-from app.core.database import get_db
+from appwrite.id import ID
+from appwrite.query import Query
+from fastapi import APIRouter, Depends, HTTPException, status, Query as QParam
+
+from app.core.appwrite_client import databases, DB_ID, COL_VEHICLES
 from app.core.security import get_current_user
-from app.domain.mechanic import Mechanic
-from app.domain.vehicle import Vehicle
 from app.schemas.vehicle import (
-    VehicleCreate,
-    VehicleUpdate,
-    VehicleResponse,
-    VehicleIdentifyRequest,
-    VehicleIdentifyResponse
+    VehicleCreate, VehicleUpdate, VehicleResponse,
+    VehicleIdentifyRequest, VehicleIdentifyResponse
 )
 
-
-
 router = APIRouter(prefix="/vehicles", tags=["Vehicles"])
+
+
+def _doc_to_response(doc: dict) -> VehicleResponse:
+    return VehicleResponse(
+        registry=doc["registry"],
+        vin=doc["vin"],
+        company=doc.get("company", ""),
+        brand=doc.get("brand", ""),
+        active_status=doc.get("active_status", True),
+        owner_id=doc.get("owner_id"),
+        # Aliases the frontend uses
+        make=doc.get("company"),
+        model=doc.get("brand"),
+    )
 
 
 @router.post("/identify", response_model=VehicleIdentifyResponse)
 def identify_vehicle(
     request: VehicleIdentifyRequest,
-    db: Session = Depends(get_db),
-    current_user: Mechanic = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user)
 ):
-    """
-    Identify a vehicle by VIN or license plate (registry).
-    
-    Supports:
-    - VIN (17 characters)
-    - License plate format: XX ####-YY or XX ####-Y
-    """
+    """Identify a vehicle by VIN or license plate."""
     identifier = request.identifier.strip().upper()
-    
-    # Check if it's a license plate (Ghana format)
-    registry_pattern = r'^[A-Z]{2}\s?\d{4}-(\d{2}|[A-Z])$'
-    
-    # Try to find by VIN first
-    vehicle = db.query(Vehicle).filter(Vehicle.vin == identifier).first()
-    
-    # Try registry if VIN not found
-    if not vehicle and re.match(registry_pattern, identifier):
-        vehicle = db.query(Vehicle).filter(Vehicle.registry == identifier).first()
-    
-    # Try partial match on registry (in case of formatting differences)
-    if not vehicle:
-        vehicle = db.query(Vehicle).filter(Vehicle.registry.contains(identifier.replace(" ", ""))).first()
-    
-    if not vehicle:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Vehicle not found with the provided identifier"
+
+    # Try VIN first
+    result = databases.list_documents(
+        database_id=DB_ID,
+        collection_id=COL_VEHICLES,
+        queries=[Query.equal("vin", identifier)]
+    )
+    docs = result.get("documents", [])
+
+    # Try registry
+    if not docs:
+        result = databases.list_documents(
+            database_id=DB_ID,
+            collection_id=COL_VEHICLES,
+            queries=[Query.equal("registry", identifier)]
         )
-    
-    return vehicle
+        docs = result.get("documents", [])
+
+    if not docs:
+        raise HTTPException(status_code=404, detail="Vehicle not found with the provided identifier")
+
+    return _doc_to_response(docs[0])
 
 
 @router.get("", response_model=List[VehicleResponse])
 def list_vehicles(
-    skip: int = Query(0, ge=0),
-    limit: int = Query(100, le=100),
+    limit: int = QParam(100, le=100),
     company: Optional[str] = None,
     active_only: bool = True,
-    db: Session = Depends(get_db),
-    current_user: Mechanic = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user)
 ):
     """List all vehicles with optional filters."""
-    query = db.query(Vehicle)
-    
-    if company:
-        query = query.filter(Vehicle.company.ilike(f"%{company}%"))
-    
+    queries = [Query.limit(limit)]
     if active_only:
-        query = query.filter(Vehicle.active_status == True)
-    
-    vehicles = query.offset(skip).limit(limit).all()
-    return vehicles
+        queries.append(Query.equal("active_status", True))
+    if company:
+        queries.append(Query.search("company", company))
+
+    result = databases.list_documents(
+        database_id=DB_ID,
+        collection_id=COL_VEHICLES,
+        queries=queries
+    )
+    return [_doc_to_response(d) for d in result.get("documents", [])]
 
 
 @router.post("", response_model=VehicleResponse, status_code=status.HTTP_201_CREATED)
 def register_vehicle(
     vehicle_data: VehicleCreate,
-    db: Session = Depends(get_db),
-    current_user: Mechanic = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user)
 ):
-    """Register a new vehicle in the system."""
-    # Check if vehicle already exists
-    existing = db.query(Vehicle).filter(
-        (Vehicle.vin == vehicle_data.vin) | (Vehicle.registry == vehicle_data.registry)
-    ).first()
-    
-    if existing:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Vehicle with this VIN or registry already exists"
-        )
-    
-    new_vehicle = Vehicle(
-        registry=vehicle_data.registry,
-        vin=vehicle_data.vin,
-        company=vehicle_data.company,
-        brand=vehicle_data.brand,
-        owner_id=vehicle_data.owner_id
+    """Register a new vehicle."""
+    # Check VIN uniqueness
+    vin_check = databases.list_documents(
+        DB_ID, COL_VEHICLES, [Query.equal("vin", vehicle_data.vin)]
     )
-    
-    db.add(new_vehicle)
-    db.commit()
-    db.refresh(new_vehicle)
-    
-    return new_vehicle
+    reg_check = databases.list_documents(
+        DB_ID, COL_VEHICLES, [Query.equal("registry", vehicle_data.registry)]
+    )
+    if vin_check.get("total", 0) > 0 or reg_check.get("total", 0) > 0:
+        raise HTTPException(status_code=400, detail="Vehicle with this VIN or registry already exists")
+
+    doc = databases.create_document(
+        database_id=DB_ID,
+        collection_id=COL_VEHICLES,
+        document_id=ID.unique(),
+        data={
+            "registry": vehicle_data.registry,
+            "vin": vehicle_data.vin,
+            "company": vehicle_data.company,
+            "brand": vehicle_data.brand,
+            "active_status": True,
+            "owner_id": vehicle_data.owner_id,
+        }
+    )
+    return _doc_to_response(doc)
 
 
 @router.get("/{registry}", response_model=VehicleResponse)
 def get_vehicle(
     registry: str,
-    db: Session = Depends(get_db),
-    current_user: Mechanic = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user)
 ):
-    """Get vehicle by license plate (registry)."""
-    vehicle = db.query(Vehicle).filter(Vehicle.registry == registry).first()
-    
-    if not vehicle:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Vehicle not found"
-        )
-    
-    return vehicle
+    """Get vehicle by license plate."""
+    result = databases.list_documents(
+        DB_ID, COL_VEHICLES, [Query.equal("registry", registry)]
+    )
+    docs = result.get("documents", [])
+    if not docs:
+        raise HTTPException(status_code=404, detail="Vehicle not found")
+    return _doc_to_response(docs[0])
 
 
 @router.put("/{registry}", response_model=VehicleResponse)
 def update_vehicle(
     registry: str,
     vehicle_update: VehicleUpdate,
-    db: Session = Depends(get_db),
-    current_user: Mechanic = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user)
 ):
     """Update vehicle information."""
-    vehicle = db.query(Vehicle).filter(Vehicle.registry == registry).first()
-    
-    if not vehicle:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Vehicle not found"
-        )
-    
-    update_data = vehicle_update.model_dump(exclude_unset=True)
-    for field, value in update_data.items():
-        setattr(vehicle, field, value)
-    
-    db.commit()
-    db.refresh(vehicle)
-    
-    return vehicle
+    result = databases.list_documents(
+        DB_ID, COL_VEHICLES, [Query.equal("registry", registry)]
+    )
+    docs = result.get("documents", [])
+    if not docs:
+        raise HTTPException(status_code=404, detail="Vehicle not found")
+
+    data = {k: v for k, v in vehicle_update.model_dump().items() if v is not None}
+    doc = databases.update_document(DB_ID, COL_VEHICLES, docs[0]["$id"], data)
+    return _doc_to_response(doc)
 
 
 @router.delete("/{registry}", status_code=status.HTTP_204_NO_CONTENT)
 def deactivate_vehicle(
     registry: str,
-    db: Session = Depends(get_db),
-    current_user: Mechanic = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user)
 ):
-    """Deactivate a vehicle (soft delete)."""
-    vehicle = db.query(Vehicle).filter(Vehicle.registry == registry).first()
-    
-    if not vehicle:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Vehicle not found"
-        )
-    
-    vehicle.active_status = False
-    db.commit()
-    
+    """Soft-delete a vehicle (set active_status=False)."""
+    result = databases.list_documents(
+        DB_ID, COL_VEHICLES, [Query.equal("registry", registry)]
+    )
+    docs = result.get("documents", [])
+    if not docs:
+        raise HTTPException(status_code=404, detail="Vehicle not found")
+
+    databases.update_document(DB_ID, COL_VEHICLES, docs[0]["$id"], {"active_status": False})
     return None

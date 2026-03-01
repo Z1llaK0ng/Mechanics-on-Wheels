@@ -1,27 +1,20 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
-from app.core.database import engine, Base
-
-# Import all models to ensure they're registered with Base
-from app.domain import (
-    subscription, shop, mechanic, vehicle,
-    vehicle_owner, job_card, active_sub
-)
 
 # Create FastAPI application
 app = FastAPI(
     title=settings.APP_NAME,
-    description="API for Ghana's informal mechanic sector - Offline-first ERP system",
+    description="API for Ghana's informal mechanic sector — Appwrite-backed ERP system",
     version="1.0.0",
     docs_url="/docs",
     redoc_url="/redoc"
 )
 
-# CORS middleware configuration
+# CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Configure based on your frontend requirements
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -30,41 +23,33 @@ app.add_middleware(
 
 @app.on_event("startup")
 async def startup():
-    """Create database tables on startup."""
-    # In production, use Alembic migrations instead
-    if settings.DEBUG:
-        try:
-            Base.metadata.create_all(bind=engine)
-            print("✅ Database tables created successfully")
-        except Exception as e:
-            print(f"⚠️  Database connection failed: {e}")
-            print("⚠️  Server will run but database operations will fail")
-            print("⚠️  Make sure MySQL is running and database exists")
-            print(f"⚠️  Connection string: {settings.DATABASE_URL}")
-
-
-@app.on_event("shutdown")
-async def shutdown():
-    """Cleanup on shutdown."""
-    pass
+    """Verify Appwrite connectivity on startup."""
+    try:
+        from app.core.appwrite_client import databases, DB_ID
+        databases.get(DB_ID)
+        print(f"[OK] Appwrite connected — database '{DB_ID}' is ready")
+    except Exception as e:
+        print(f"[WARN] Appwrite health check failed: {e}")
+        print("[WARN] Check APPWRITE_ENDPOINT, APPWRITE_PROJECT_ID, and APPWRITE_API_KEY in .env")
 
 
 @app.get("/")
 def root():
-    """Root endpoint - API health check."""
-    return {
-        "message": "Welcome to MechanicERP API",
-        "version": "1.0.0",
-        "status": "operational"
-    }
+    return {"message": "Welcome to MechanicERP API", "version": "1.0.0", "status": "operational"}
 
 
 @app.get("/health")
 def health_check():
-    """Health check endpoint."""
     return {"status": "healthy"}
 
 
-# Import and include API routers
+@app.get("/debug-config")
+def debug_config():
+    from app.core.appwrite_client import DB_ID
+    from app.config import settings
+    return {"db_id": DB_ID, "env_db_id": settings.APPWRITE_DB_ID}
+
+
+# Include API routers
 from app.api.v1.router import api_router
 app.include_router(api_router, prefix=settings.API_V1_PREFIX)

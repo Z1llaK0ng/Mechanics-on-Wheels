@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
-import apiClient from '../../infrastructure/api/client'
-import type { Vehicle } from '../../domain/types'
+import apiClient from '../../../infrastructure/api/client'
+import type { Vehicle } from '../../../domain/types'
 
 export default function VehiclesPage() {
     const { data: vehicles, isLoading } = useQuery({

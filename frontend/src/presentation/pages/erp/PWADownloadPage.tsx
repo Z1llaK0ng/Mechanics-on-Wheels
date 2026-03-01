@@ -1,7 +1,7 @@
 import { useNavigate } from 'react-router-dom'
-import { useModules } from '../hooks/useModules'
-import { usePWAInstall } from '../hooks/usePWAInstall'
-import type { AppModule } from '../../domain/types'
+import { useModules } from '../../hooks/useModules'
+import { usePWAInstall } from '../../hooks/usePWAInstall'
+import type { AppModule } from '../../../domain/types'
 
 export default function PWADownloadPage() {
     const { data: modules, isLoading } = useModules()
