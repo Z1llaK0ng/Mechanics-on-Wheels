@@ -1,9 +1,21 @@
-import { useState } from 'react'
-import { Link, useLocation } from 'react-router-dom'
+import { useState, useRef } from 'react'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useShopAuth, ShopRole } from '../../hooks/useShopAuth'
 
 export default function ShopLoginPage() {
-    const { loginMutation } = useShopAuth()
+    const navigate = useNavigate()
+    const roleRef = useRef<ShopRole>('admin')
+
+    const { loginMutation } = useShopAuth({
+        onSuccess: () => {
+            // redirect based on role at time of submit
+            navigate(
+                roleRef.current === 'admin' ? '/shop/marketplace' : '/shop/modules',
+                { replace: true }
+            )
+        }
+    })
+
     const location = useLocation()
     const justRegistered = (location.state as { registered?: boolean })?.registered
 
@@ -12,10 +24,19 @@ export default function ShopLoginPage() {
     const [password, setPassword] = useState('')
     const [shopId, setShopId] = useState('')   // mechanic-only field
 
+    const handleRoleChange = (r: ShopRole) => {
+        setRole(r)
+        roleRef.current = r
+    }
+
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault()
         loginMutation.mutate({ email, password, role, shopId: role === 'mechanic' ? shopId : undefined })
     }
+
+    const errorMessage = loginMutation.isError
+        ? ((loginMutation.error as any)?.response?.data?.detail ?? 'Incorrect credentials. Please check your details.')
+        : null
 
     return (
         <div className="login-page">
@@ -39,18 +60,18 @@ export default function ShopLoginPage() {
                 {/* Role toggle */}
                 <div className="shop-role-toggle">
                     <button type="button" className={`shop-role-btn ${role === 'admin' ? 'active' : ''}`}
-                        onClick={() => setRole('admin')}>
+                        onClick={() => handleRoleChange('admin')}>
                         🏢 Shop Admin
                     </button>
                     <button type="button" className={`shop-role-btn ${role === 'mechanic' ? 'active' : ''}`}
-                        onClick={() => setRole('mechanic')}>
+                        onClick={() => handleRoleChange('mechanic')}>
                         🔧 Mechanic
                     </button>
                 </div>
 
-                {loginMutation.isError && (
+                {errorMessage && (
                     <div className="login-error" style={{ marginBottom: 16 }}>
-                        Incorrect credentials. Please check your details and try again.
+                        {errorMessage}
                     </div>
                 )}
 

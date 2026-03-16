@@ -1,24 +1,46 @@
 import { useState } from 'react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useShopAuthStore } from '../../hooks/useShopAuth'
+import shopApiClient from '../../../infrastructure/api/shopClient'
 
-// Mock mechanic data — replace with API calls
-const MOCK_MECHANICS = [
-    { id: 'm1', name: 'Kwame Asante', email: 'kwame@workshop.gh', active: true },
-    { id: 'm2', name: 'Ama Boateng', email: 'ama@workshop.gh', active: true },
-    { id: 'm3', name: 'Kofi Mensah', email: 'kofi@workshop.gh', active: false },
-]
+interface MechanicRow {
+    id: string
+    name: string
+    email: string
+    active: boolean
+}
 
 export default function ShopSettingsPage() {
     const user = useShopAuthStore((s) => s.user)
     const [shopName, setShopName] = useState(user?.shopName ?? '')
     const [location, setLocation] = useState('')
     const [saved, setSaved] = useState(false)
-    const [mechanics, setMechanics] = useState(MOCK_MECHANICS)
     const [showAddMechanic, setShowAddMechanic] = useState(false)
     const [newMechanic, setNewMechanic] = useState({ name: '', email: '', password: '' })
+    const [addError, setAddError] = useState('')
     const [copied, setCopied] = useState(false)
 
+    // Password change
+    const [pwForm, setPwForm] = useState({ current: '', next: '', confirm: '' })
+    const [pwMsg, setPwMsg] = useState<{ text: string; ok: boolean } | null>(null)
+
     const shopId = user?.shopId ?? '—'
+    const qc = useQueryClient()
+
+    const { data: mechanics = [], isLoading: mechanicsLoading } = useQuery<MechanicRow[]>({
+        queryKey: ['shop', 'mechanics', user?.shopId],
+        enabled: !!user?.shopId,
+        queryFn: async () => {
+            if (!user?.shopId) return []
+            const { data } = await shopApiClient.get(`/shops/${user.shopId}/mechanics`)
+            return data.map((m: any) => ({
+                id: m.id,
+                name: m.full_name ?? `${m.first_name} ${m.last_name}`.trim(),
+                email: m.email,
+                active: m.active_status,
+            }))
+        },
+    })
 
     const copyShopId = () => {
         navigator.clipboard.writeText(shopId)
@@ -26,34 +48,101 @@ export default function ShopSettingsPage() {
         setTimeout(() => setCopied(false), 2000)
     }
 
+    const shopMutation = useMutation({
+        mutationFn: async (payload: { shop_name: string; location: string }) => {
+            if (!user?.shopId) return
+            await shopApiClient.patch(`/shops/${user.shopId}`, payload)
+        },
+        onSuccess: () => {
+            setSaved(true)
+            setTimeout(() => setSaved(false), 2500)
+        },
+    })
+
+    const toggleMechanicMutation = useMutation({
+        mutationFn: async (id: string) => {
+            await shopApiClient.patch(`/shops/mechanics/${id}`)
+        },
+        onSuccess: () => {
+            qc.invalidateQueries({ queryKey: ['shop', 'mechanics', user?.shopId] })
+        },
+    })
+
+    const removeMechanicMutation = useMutation({
+        mutationFn: async (id: string) => {
+            await shopApiClient.delete(`/shops/mechanics/${id}`)
+        },
+        onSuccess: () => {
+            qc.invalidateQueries({ queryKey: ['shop', 'mechanics', user?.shopId] })
+        },
+    })
+
+    const addMechanicMutation = useMutation({
+        mutationFn: async (payload: { name: string; email: string; password: string }) => {
+            if (!user?.shopId) return
+            await shopApiClient.post(`/shops/${user.shopId}/mechanics`, {
+                full_name: payload.name,
+                email: payload.email,
+                password: payload.password,
+            })
+        },
+        onSuccess: () => {
+            qc.invalidateQueries({ queryKey: ['shop', 'mechanics', user?.shopId] })
+            setNewMechanic({ name: '', email: '', password: '' })
+            setShowAddMechanic(false)
+            setAddError('')
+            alert('Mechanic added successfully!')
+        },
+        onError: (error: any) => {
+            setAddError(error?.response?.data?.detail || 'Failed to add mechanic. Please try again.')
+        }
+    })
+
+    const changePasswordMutation = useMutation({
+        mutationFn: async (payload: { current_password: string; new_password: string }) => {
+            if (!user?.shopId) return
+            await shopApiClient.patch(`/shops/${user.shopId}/password`, payload)
+        },
+        onSuccess: () => {
+            setPwMsg({ text: '✅ Password updated successfully!', ok: true })
+            setPwForm({ current: '', next: '', confirm: '' })
+            setTimeout(() => setPwMsg(null), 3000)
+        },
+        onError: (error: any) => {
+            setPwMsg({ text: error?.response?.data?.detail || 'Failed to update password.', ok: false })
+        },
+    })
+
     const saveShopInfo = (e: React.FormEvent) => {
         e.preventDefault()
-        // TODO: PATCH /api/v1/shops/:id
-        setSaved(true)
-        setTimeout(() => setSaved(false), 2500)
+        shopMutation.mutate({ shop_name: shopName, location })
+    }
+
+    const changePassword = (e: React.FormEvent) => {
+        e.preventDefault()
+        if (pwForm.next !== pwForm.confirm) {
+            setPwMsg({ text: 'New passwords do not match.', ok: false })
+            return
+        }
+        if (pwForm.next.length < 6) {
+            setPwMsg({ text: 'Password must be at least 6 characters.', ok: false })
+            return
+        }
+        changePasswordMutation.mutate({ current_password: pwForm.current, new_password: pwForm.next })
     }
 
     const toggleMechanic = (id: string) => {
-        setMechanics(prev => prev.map(m => m.id === id ? { ...m, active: !m.active } : m))
-        // TODO: PATCH /api/v1/mechanics/:id
+        toggleMechanicMutation.mutate(id)
     }
 
     const removeMechanic = (id: string) => {
-        setMechanics(prev => prev.filter(m => m.id !== id))
-        // TODO: DELETE /api/v1/mechanics/:id
+        if (!window.confirm('Remove this mechanic?')) return
+        removeMechanicMutation.mutate(id)
     }
 
     const addMechanic = (e: React.FormEvent) => {
         e.preventDefault()
-        setMechanics(prev => [...prev, {
-            id: `m${Date.now()}`,
-            name: newMechanic.name,
-            email: newMechanic.email,
-            active: true,
-        }])
-        setNewMechanic({ name: '', email: '', password: '' })
-        setShowAddMechanic(false)
-        // TODO: POST /api/v1/mechanics
+        addMechanicMutation.mutate(newMechanic)
     }
 
     return (
@@ -84,6 +173,17 @@ export default function ShopSettingsPage() {
                 <p className="text-sm text-muted" style={{ marginTop: 10 }}>
                     Share this ID with your mechanics — they'll need it to log in.
                 </p>
+                <div style={{ marginTop: 12 }}>
+                    <a
+                        href="/shop/login"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="btn btn-secondary"
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: 8, textDecoration: 'none' }}
+                    >
+                        🔗 Open Mechanic Login Page
+                    </a>
+                </div>
             </div>
 
             {/* ── Shop Info ── */}
@@ -123,7 +223,12 @@ export default function ShopSettingsPage() {
                 </div>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                    {mechanics.map(mec => (
+                    {mechanicsLoading && (
+                        <div className="loading-state" style={{ padding: '24px 0' }}>
+                            <span>Loading mechanics…</span>
+                        </div>
+                    )}
+                    {!mechanicsLoading && mechanics.map(mec => (
                         <div key={mec.id} className="shop-mechanic-row">
                             <div className="avatar" style={{ width: 36, height: 36, fontSize: 13 }}>
                                 {mec.name.split(' ').map((n: string) => n[0]).join('')}
@@ -144,7 +249,7 @@ export default function ShopSettingsPage() {
                             </button>
                         </div>
                     ))}
-                    {mechanics.length === 0 && (
+                    {!mechanicsLoading && mechanics.length === 0 && (
                         <div className="loading-state" style={{ padding: '24px 0' }}>
                             <span>No mechanics yet. Add one above.</span>
                         </div>
@@ -161,6 +266,7 @@ export default function ShopSettingsPage() {
                             <button className="btn btn-ghost btn-sm" onClick={() => setShowAddMechanic(false)}>✕</button>
                         </div>
                         <form className="modal-form" onSubmit={addMechanic}>
+                            {addError && <div style={{ color: 'var(--danger)', marginBottom: '12px', fontSize: '13px' }}>{addError}</div>}
                             <div className="form-group">
                                 <label className="form-label" htmlFor="add-mec-name">Full name</label>
                                 <input id="add-mec-name" type="text" className="form-input"
@@ -190,6 +296,51 @@ export default function ShopSettingsPage() {
                     </div>
                 </div>
             )}
+
+            {/* ── Change Password ── */}
+            <div className="card" style={{ marginTop: 24 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 16 }}>
+                    Change Password
+                </div>
+                <form onSubmit={changePassword} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                    {pwMsg && (
+                        <div style={{
+                            padding: '10px 14px', borderRadius: 8, fontSize: 13,
+                            background: pwMsg.ok ? 'rgba(34,197,94,0.12)' : 'rgba(239,68,68,0.12)',
+                            color: pwMsg.ok ? '#22c55e' : '#ef4444',
+                            border: `1px solid ${pwMsg.ok ? '#22c55e33' : '#ef444433'}`,
+                        }}>
+                            {pwMsg.text}
+                        </div>
+                    )}
+                    <div className="form-group">
+                        <label className="form-label" htmlFor="pw-current">Current password</label>
+                        <input id="pw-current" type="password" className="form-input"
+                            placeholder="••••••••" required
+                            value={pwForm.current}
+                            onChange={e => setPwForm(p => ({ ...p, current: e.target.value }))} />
+                    </div>
+                    <div className="form-group">
+                        <label className="form-label" htmlFor="pw-new">New password</label>
+                        <input id="pw-new" type="password" className="form-input"
+                            placeholder="••••••••" required
+                            value={pwForm.next}
+                            onChange={e => setPwForm(p => ({ ...p, next: e.target.value }))} />
+                    </div>
+                    <div className="form-group">
+                        <label className="form-label" htmlFor="pw-confirm">Confirm new password</label>
+                        <input id="pw-confirm" type="password" className="form-input"
+                            placeholder="••••••••" required
+                            value={pwForm.confirm}
+                            onChange={e => setPwForm(p => ({ ...p, confirm: e.target.value }))} />
+                    </div>
+                    <div>
+                        <button type="submit" className="btn btn-primary" disabled={changePasswordMutation.isPending}>
+                            {changePasswordMutation.isPending ? 'Updating…' : '🔒 Update Password'}
+                        </button>
+                    </div>
+                </form>
+            </div>
         </div>
     )
 }

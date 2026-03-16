@@ -1,30 +1,37 @@
 import { useNavigate } from 'react-router-dom'
-import { useShopAuthStore, ALL_MODULES } from '../../hooks/useShopAuth'
+import { useShopAuthStore, useModulesCatalogue } from '../../hooks/useShopAuth'
 
 export default function MechanicModulesPage() {
     const user = useShopAuthStore((s) => s.user)
     const navigate = useNavigate()
     const activeIds = new Set(user?.subscribedModules ?? [])
-    const accessibleMods = ALL_MODULES.filter(m => activeIds.has(m.id))
+    const { data: catalogue = [], isLoading } = useModulesCatalogue()
+    const accessibleMods = catalogue.filter((m: any) => activeIds.has(m.id))
 
     // Module → ERP route mapping
+    // NOTE: Some modules (inventory, invoicing, analytics) don't have dedicated ERP routes yet,
+    // so they currently point to the modules overview instead of a non-existent path.
     const moduleRoutes: Record<string, string> = {
         'job-cards': '/job-cards',
         'vehicles': '/vehicles',
-        'inventory': '/inventory',
-        'invoicing': '/invoicing',
-        'analytics': '/analytics',
+        'inventory': '/modules',
+        'invoicing': '/modules',
+        'analytics': '/modules',
         'pwa': '/download-pwa',
     }
 
     return (
         <div className="fade-in">
             <div className="page-header">
-                <h1>Your Modules</h1>
+                <h1>Provided Modules</h1>
                 <p>Tap a module to open it</p>
             </div>
 
-            {accessibleMods.length === 0 ? (
+            {isLoading ? (
+                <div style={{ padding: '40px', textAlign: 'center', color: 'var(--text-secondary)' }}>
+                    Loading available modules...
+                </div>
+            ) : accessibleMods.length === 0 ? (
                 <div className="loading-state">
                     <span style={{ fontSize: 48 }}>🔒</span>
                     <p style={{ fontWeight: 600 }}>No modules available</p>
@@ -32,7 +39,7 @@ export default function MechanicModulesPage() {
                 </div>
             ) : (
                 <div className="mechanic-module-grid">
-                    {accessibleMods.map(mod => (
+                    {accessibleMods.map((mod: any) => (
                         <button
                             key={mod.id}
                             className="mechanic-module-tile"

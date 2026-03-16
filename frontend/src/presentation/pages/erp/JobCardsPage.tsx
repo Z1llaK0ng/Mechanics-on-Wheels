@@ -26,13 +26,13 @@ export default function JobCardsPage() {
     })
 
     const statusMutation = useMutation({
-        mutationFn: ({ id, status }: { id: number; status: string }) =>
+        mutationFn: ({ id, status }: { id: string; status: string }) =>
             apiClient.put(`/job-cards/${id}/status?status=${status}`),
         onSuccess: () => qc.invalidateQueries({ queryKey: ['job-cards'] })
     })
 
     const deleteMutation = useMutation({
-        mutationFn: (id: number) => apiClient.delete(`/job-cards/${id}`),
+        mutationFn: (id: string) => apiClient.delete(`/job-cards/${id}`),
         onSuccess: () => qc.invalidateQueries({ queryKey: ['job-cards'] })
     })
 

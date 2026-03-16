@@ -1,22 +1,31 @@
 import { useState } from 'react'
-import { useShopAuthStore, ALL_MODULES } from '../../hooks/useShopAuth'
-
-// Mock mechanic data — replace with API call
-const MOCK_MECHANICS = [
-    { id: 'm1', name: 'Kwame Asante', email: 'kwame@workshop.gh' },
-    { id: 'm2', name: 'Ama Boateng', email: 'ama@workshop.gh' },
-    { id: 'm3', name: 'Kofi Mensah', email: 'kofi@workshop.gh' },
-    { id: 'm4', name: 'Abena Osei', email: 'abena@workshop.gh' },
-]
+import { useQuery } from '@tanstack/react-query'
+import { useShopAuthStore, useModulesCatalogue } from '../../hooks/useShopAuth'
+import shopApiClient from '../../../infrastructure/api/shopClient'
 
 export default function ShopSubscriptionPage() {
     const user = useShopAuthStore((s) => s.user)
+    const { data: catalogue = [] } = useModulesCatalogue()
     const activeIds = new Set(user?.subscribedModules ?? [])
-    const activeMods = ALL_MODULES.filter(m => activeIds.has(m.id))
+    const activeMods = catalogue.filter((m: any) => activeIds.has(m.id))
 
     // mechanic access: moduleId → Set of mechanic IDs with access
+    const { data: mechanics = [] } = useQuery({
+        queryKey: ['shop', 'mechanics', user?.shopId],
+        enabled: !!user?.shopId,
+        queryFn: async () => {
+            if (!user?.shopId) return []
+            const { data } = await shopApiClient.get(`/shops/${user.shopId}/mechanics`)
+            return data.map((m: any) => ({
+                id: m.id,
+                name: m.full_name ?? `${m.first_name} ${m.last_name}`.trim(),
+                email: m.email,
+            }))
+        },
+    })
+
     const [access, setAccess] = useState<Record<string, Set<string>>>(() =>
-        Object.fromEntries(activeMods.map(m => [m.id, new Set(MOCK_MECHANICS.map(mec => mec.id))]))
+        Object.fromEntries(activeMods.map((m: any) => [m.id, new Set<string>()]))
     )
 
     const toggleAccess = (moduleId: string, mechanicId: string) => {
@@ -40,7 +49,7 @@ export default function ShopSubscriptionPage() {
                     <p>No active subscriptions yet.</p>
                     <a href="/shop/marketplace" className="btn btn-primary">Browse Marketplace</a>
                 </div>
-            ) : activeMods.map(mod => (
+            ) : activeMods.map((mod: any) => (
                 <div key={mod.id} className="card" style={{ marginBottom: 20 }}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
@@ -57,12 +66,12 @@ export default function ShopSubscriptionPage() {
                         Mechanic Access
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                        {MOCK_MECHANICS.map(mec => {
+                        {mechanics.map((mec: any) => {
                             const hasAccess = access[mod.id]?.has(mec.id) ?? false
                             return (
                                 <div key={mec.id} className="shop-mechanic-row">
                                     <div className="avatar" style={{ width: 32, height: 32, fontSize: 12 }}>
-                                        {mec.name.split(' ').map(n => n[0]).join('')}
+                                        {mec.name.split(' ').map((n: string) => n[0]).join('')}
                                     </div>
                                     <div style={{ flex: 1 }}>
                                         <div style={{ fontWeight: 500, fontSize: 14 }}>{mec.name}</div>

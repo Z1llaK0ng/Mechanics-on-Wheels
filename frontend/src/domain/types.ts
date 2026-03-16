@@ -8,18 +8,18 @@ export interface Token {
 // ─── Mechanic ──────────────────────────────────────────────────────────────
 
 export interface Mechanic {
-    id: number
+    id: string
     first_name: string
     last_name: string
     email: string
-    shop_id: number
+    shop_id: string
     active_status: boolean
 }
 
 // ─── Shop ──────────────────────────────────────────────────────────────────
 
 export interface Shop {
-    shop_id: number
+    shop_id: string
     shop_name: string
     location: string
 }
@@ -27,15 +27,15 @@ export interface Shop {
 // ─── Subscription / Module ─────────────────────────────────────────────────
 
 export interface Subscription {
-    subscription_id: number
+    subscription_id: string
     name: string
     payment_period: string // e.g. "monthly" | "yearly"
 }
 
 export interface ActiveSub {
-    id: number
-    shop_id: number
-    subscription_id: number
+    id: string
+    shop_id: string
+    subscription_id: string
     date_of_activation: string
     subscription: Subscription
 }
@@ -45,10 +45,10 @@ export interface ActiveSub {
 export type JobCardStatus = 'pending' | 'in-progress' | 'completed'
 
 export interface JobCard {
-    job_card_id: number
+    job_card_id: string
     vehicle_vin: string
     vehicle_registry: string
-    upload_mechanic: number
+    upload_mechanic: string
     parts_affected: string
     details: string
     status: JobCardStatus
@@ -76,7 +76,7 @@ export interface Vehicle {
     make?: string
     model?: string
     year?: number
-    owner_id?: number
+    owner_id?: string
 }
 
 // ─── PWA ───────────────────────────────────────────────────────────────────

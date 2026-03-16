@@ -7,6 +7,7 @@ import JobCardsPage from './presentation/pages/erp/JobCardsPage'
 import VehiclesPage from './presentation/pages/erp/VehiclesPage'
 import PWADownloadPage from './presentation/pages/erp/PWADownloadPage'
 import AppLayout from './presentation/components/AppLayout'
+import LandingPage from './presentation/pages/LandingPage'
 
 // ── Shop Portal ───────────────────────────────────────────────────────────────
 import ShopLoginPage from './presentation/pages/shop/ShopLoginPage'
@@ -37,8 +38,8 @@ export default function AppRouter() {
         <BrowserRouter>
             <Routes>
                 {/* ── Public ── */}
+                <Route path="/" element={<LandingPage />} />
                 <Route path="/login" element={<LoginPage />} />
-                <Route path="/" element={<Navigate to="/dashboard" replace />} />
 
                 {/* ── Shop Portal ── */}
                 <Route path="/shop" element={<Navigate to="/shop/login" replace />} />
@@ -73,7 +74,7 @@ export default function AppRouter() {
                 </Route>
 
                 {/* ── Fallback ── */}
-                <Route path="*" element={<Navigate to="/dashboard" replace />} />
+                <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
         </BrowserRouter>
     )
