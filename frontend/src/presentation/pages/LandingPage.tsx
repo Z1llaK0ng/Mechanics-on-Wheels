@@ -64,7 +64,7 @@ export default function LandingPage() {
                         <button className={`landing-nav-link ${activeTab === 'suggest' ? 'active' : ''}`} onClick={() => scrollTo(suggestRef, 'suggest')}>Suggest a Module</button>
                     </div>
                     <div className="landing-nav-actions">
-                        <button className="btn btn-ghost btn-sm" onClick={() => navigate('/shop/login')}>Mechanic Login</button>
+                        <button className="btn btn-ghost btn-sm" onClick={() => navigate('/shop/login')}>Login</button>
                         <button className="btn btn-primary btn-sm" onClick={() => navigate('/shop/register')}>Register Your Shop</button>
                     </div>
                 </div>

@@ -150,6 +150,18 @@ a {
   display: flex;
   flex-direction: column;
   gap: 4px;
+  min-height: 0;
+}
+
+@media (max-height: 45rem) {
+  .sidebar-nav {
+    overflow-y: auto;
+  }
+  
+  /* Optional: thin scrollbar for sidebar nav */
+  .sidebar-nav::-webkit-scrollbar {
+    width: 4px;
+  }
 }
 
 .sidebar-link {
@@ -1694,11 +1706,33 @@ tbody tr:hover {
 .shop-mechanic-row {
   display: flex;
   align-items: center;
-  gap: 12px;
+  flex-wrap: wrap;
+  gap: 10px;
   padding: 10px 14px;
   border-radius: 10px;
   background: var(--bg-tertiary);
   border: 1px solid var(--border-subtle);
+}
+
+.shop-mechanic-row > *:nth-child(2) {
+  flex: 1;
+  min-width: 0;
+}
+
+.shop-mechanic-row-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+@media (max-width: 700px) {
+  .shop-mechanic-row-controls {
+    width: 100%;
+    padding-top: 6px;
+    border-top: 1px solid var(--border-subtle);
+    justify-content: flex-start;
+  }
 }
 
 /* Toggle switch */
@@ -2555,4 +2589,17 @@ tbody tr:hover {
   .landing-suggest-row { grid-template-columns: 1fr; }
   .landing-portals-grid { grid-template-columns: 1fr; }
   .landing-portal-card { padding: 32px 24px; }
-}
+}
+
+/* ── CRM Drawer animation ────────────────────────────────── */
+@keyframes slideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(40px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+

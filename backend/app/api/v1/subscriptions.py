@@ -32,7 +32,7 @@ def get_my_subscriptions(current_user: dict = Depends(get_current_user)):
     )
 
     result = []
-    for sub in active_subs.get("documents", []):
+    for sub in active_subs["documents"]:
         sub_id = sub["subscription_id"]
         try:
             subscription = databases.get_document(DB_ID, COL_SUBSCRIPTIONS, sub_id)
@@ -48,6 +48,7 @@ def get_my_subscriptions(current_user: dict = Depends(get_current_user)):
                 "subscription_id": subscription["$id"],
                 "name": subscription["name"],
                 "payment_period": subscription["payment_period"],
+                "description": subscription.get("desc", ""),
             },
             # Frontend AppModule shape
             "activeSince": sub.get("date_of_activation", ""),
@@ -56,6 +57,27 @@ def get_my_subscriptions(current_user: dict = Depends(get_current_user)):
         })
 
     return result
+
+
+@router.get(
+    "/shop-active",
+    summary="Get the active subscription IDs for the currently logged-in shop admin",
+)
+def get_shop_active_subscriptions(
+    current_admin: dict = Depends(get_current_shop_admin),
+):
+    """
+    Returns a flat list of subscription_id strings for the admin's shop.
+    E.g. ["job-cards_monthly", "inventory_monthly"]
+    This is used by the frontend to refresh state after subscribe/cancel without a page reload.
+    """
+    shop_id = current_admin.get("shop_id", "")
+    active_subs = databases.list_documents(
+        database_id=DB_ID,
+        collection_id=COL_ACTIVE_SUBS,
+        queries=[Query.equal("shop_id", shop_id)],
+    )
+    return [doc["subscription_id"] for doc in active_subs["documents"]]
 
 
 @router.post(
@@ -91,7 +113,7 @@ def activate_subscription_for_shop(
             Query.equal("subscription_id", payload.subscription_id),
         ],
     )
-    if existing.get("total", 0) > 0:
+    if existing["total"] > 0:
         # Idempotent: already active
         return {"detail": "Already active"}
 
@@ -129,7 +151,7 @@ def deactivate_subscription_for_shop(
             Query.equal("subscription_id", subscription_id),
         ],
     )
-    for doc in result.get("documents", []):
+    for doc in result["documents"]:
         databases.delete_document(DB_ID, COL_ACTIVE_SUBS, doc["$id"])
 
     return {"detail": "Deactivated"}
@@ -147,5 +169,5 @@ def list_all_subscriptions():
             "payment_period": s["payment_period"],
             "price": s.get("price", 0),
         }
-        for s in result.get("documents", [])
+        for s in result["documents"]
     ]

@@ -1,24 +1,12 @@
 import { useNavigate } from 'react-router-dom'
-import { useShopAuthStore, useModulesCatalogue } from '../../hooks/useShopAuth'
+import { useShopAuthStore, useModulesCatalogue, MODULE_ROUTES } from '../../hooks/useShopAuth'
 
 export default function MechanicModulesPage() {
     const user = useShopAuthStore((s) => s.user)
     const navigate = useNavigate()
-    const activeIds = new Set(user?.subscribedModules ?? [])
+    const activeIds = new Set(user?.permittedModules ?? [])
     const { data: catalogue = [], isLoading } = useModulesCatalogue()
     const accessibleMods = catalogue.filter((m: any) => activeIds.has(m.id))
-
-    // Module → ERP route mapping
-    // NOTE: Some modules (inventory, invoicing, analytics) don't have dedicated ERP routes yet,
-    // so they currently point to the modules overview instead of a non-existent path.
-    const moduleRoutes: Record<string, string> = {
-        'job-cards': '/job-cards',
-        'vehicles': '/vehicles',
-        'inventory': '/modules',
-        'invoicing': '/modules',
-        'analytics': '/modules',
-        'pwa': '/download-pwa',
-    }
 
     return (
         <div className="fade-in">
@@ -43,7 +31,7 @@ export default function MechanicModulesPage() {
                         <button
                             key={mod.id}
                             className="mechanic-module-tile"
-                            onClick={() => navigate(moduleRoutes[mod.id] ?? '/')}
+                            onClick={() => navigate(MODULE_ROUTES[mod.id] ?? '/')}
                         >
                             <span className="mechanic-module-tile-icon">{mod.icon}</span>
                             <span className="mechanic-module-tile-name">{mod.name}</span>

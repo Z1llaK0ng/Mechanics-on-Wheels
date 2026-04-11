@@ -43,7 +43,7 @@ def identify_vehicle(
         collection_id=COL_VEHICLES,
         queries=[Query.equal("vin", identifier)]
     )
-    docs = result.get("documents", [])
+    docs = result["documents"]
 
     # Try registry
     if not docs:
@@ -52,7 +52,7 @@ def identify_vehicle(
             collection_id=COL_VEHICLES,
             queries=[Query.equal("registry", identifier)]
         )
-        docs = result.get("documents", [])
+        docs = result["documents"]
 
     if not docs:
         raise HTTPException(status_code=404, detail="Vehicle not found with the provided identifier")
@@ -79,7 +79,7 @@ def list_vehicles(
         collection_id=COL_VEHICLES,
         queries=queries
     )
-    return [_doc_to_response(d) for d in result.get("documents", [])]
+    return [_doc_to_response(d) for d in result["documents"]]
 
 
 @router.post("", response_model=VehicleResponse, status_code=status.HTTP_201_CREATED)
@@ -95,7 +95,7 @@ def register_vehicle(
     reg_check = databases.list_documents(
         DB_ID, COL_VEHICLES, [Query.equal("registry", vehicle_data.registry)]
     )
-    if vin_check.get("total", 0) > 0 or reg_check.get("total", 0) > 0:
+    if vin_check["total"] > 0 or reg_check["total"] > 0:
         raise HTTPException(status_code=400, detail="Vehicle with this VIN or registry already exists")
 
     doc = databases.create_document(
@@ -123,7 +123,7 @@ def get_vehicle(
     result = databases.list_documents(
         DB_ID, COL_VEHICLES, [Query.equal("registry", registry)]
     )
-    docs = result.get("documents", [])
+    docs = result["documents"]
     if not docs:
         raise HTTPException(status_code=404, detail="Vehicle not found")
     return _doc_to_response(docs[0])
@@ -139,7 +139,7 @@ def update_vehicle(
     result = databases.list_documents(
         DB_ID, COL_VEHICLES, [Query.equal("registry", registry)]
     )
-    docs = result.get("documents", [])
+    docs = result["documents"]
     if not docs:
         raise HTTPException(status_code=404, detail="Vehicle not found")
 
@@ -157,7 +157,7 @@ def deactivate_vehicle(
     result = databases.list_documents(
         DB_ID, COL_VEHICLES, [Query.equal("registry", registry)]
     )
-    docs = result.get("documents", [])
+    docs = result["documents"]
     if not docs:
         raise HTTPException(status_code=404, detail="Vehicle not found")
 

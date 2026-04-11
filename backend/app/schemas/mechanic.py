@@ -1,5 +1,5 @@
 from pydantic import BaseModel, EmailStr
-from typing import Optional
+from typing import Optional, List
 
 
 class MechanicBase(BaseModel):
@@ -24,6 +24,10 @@ class MechanicResponse(MechanicBase):
     id: str           # Appwrite $id
     active_status: bool
     full_name: Optional[str] = None
+    shop_name: Optional[str] = None
+    staffrole: Optional[str] = "technician"
+    permitted_modules: List[str] = []
+    can_push_global_db: bool = False
 
     model_config = {"from_attributes": True}
 

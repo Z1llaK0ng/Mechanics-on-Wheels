@@ -14,6 +14,10 @@ interface ShopUser {
     shopName: string
     /** module IDs the shop has subscribed to */
     subscribedModules: string[]
+    /** modules permitted for the mechanic */
+    permittedModules?: string[]
+    /** 'technician' | 'staff' — only set for mechanic-scoped logins */
+    staffrole?: string
 }
 
 interface ShopAuthState {
@@ -31,9 +35,27 @@ export const useShopAuthStore = create<ShopAuthState>()(
             token: null,
             isAuthenticated: false,
             login: (user, token) => set({ user, token, isAuthenticated: true }),
-            logout: () => set({ user: null, token: null, isAuthenticated: false }),
+            logout: () => {
+                set({ user: null, token: null, isAuthenticated: false })
+                // Also clear standard ERP auth store if logging out of shop
+                useAuthStore.getState().logout()
+            },
         }),
-        { name: 'shop-auth' }
+        {
+            name: 'shop-auth',
+            // Explicitly list what to persist so reloads always restore full state.
+            partialize: (state) => ({
+                user: state.user,
+                token: state.token,
+                isAuthenticated: state.isAuthenticated,
+            }),
+            // Re-derive isAuthenticated from token on rehydration for safety.
+            onRehydrateStorage: () => (state) => {
+                if (state) {
+                    state.isAuthenticated = !!state.token
+                }
+            },
+        }
     )
 )
 
@@ -52,14 +74,37 @@ async function shopLogin(payload: LoginPayload) {
     return data
 }
 
-export function useShopAuth(options?: { onSuccess?: () => void }) {
+import { useAuthStore } from '../../infrastructure/store/authStore'
+
+export function useShopAuth(options?: { onSuccess?: (data: any) => void }) {
     const { login, logout, user, isAuthenticated } = useShopAuthStore()
 
     const loginMutation = useMutation({
         mutationFn: shopLogin,
         onSuccess: (data) => {
             login(data.user, data.access_token)
-            options?.onSuccess?.()
+            
+            // If it's a mechanic, also sync the standard ERP 'useAuthStore'
+            // so they don't hit the PrivateRoute guard and get redirected back out.
+            if (data.user.role === 'mechanic') {
+                const nameParts = data.user.name.split(' ')
+                const fn = nameParts[0] || 'Unknown'
+                const ln = nameParts.slice(1).join(' ') || 'User'
+                
+                // Have to cast through any or omit role if Mechanic type doesn't have it,
+                // but we map the correct payload to fulfill the ERP Mechanic interface:
+                useAuthStore.getState().login(data.access_token, {
+                    id: data.user.id,
+                    first_name: fn,
+                    last_name: ln,
+                    email: data.user.email,
+                    shop_id: data.user.shopId,
+                    active_status: true,
+                    // Note: 'role' is not in the Mechanic UI type, but we pass what's needed
+                } as any)
+            }
+            
+            options?.onSuccess?.(data)
         }
     })
 
@@ -174,6 +219,19 @@ export const MODULE_REQUIREMENTS: Record<string, string[]> = {
     'global-db':  ['job-cards'],
 }
 
+// ── Module route mapping ──────────────────────────────────────────────────────
+export const MODULE_ROUTES: Record<string, string> = {
+    'job-cards': '/job-cards',
+    'vehicles': '/vehicles',
+    'inventory': '/modules',
+    'invoicing': '/modules',
+    'analytics': '/modules',
+    'pwa': '/download-pwa',
+    'crm': '/modules',
+    'employees': '/modules',
+    'global-db': '/modules',
+}
+
 // ── Preset module groups ──────────────────────────────────────────────────────
 export interface ModuleGroup {
     id: string
@@ -182,31 +240,35 @@ export interface ModuleGroup {
     desc: string
     moduleIds: string[]
     price: { monthly: number; yearly: number }
+    shopId?: string
 }
 
-export const ALL_MODULE_GROUPS: ModuleGroup[] = [
-    {
-        id: 'shop-management-1',
-        name: 'Shop Management 1',
-        icon: '🏪',
-        desc: 'The essential workshop bundle — job cards, billing, staff and parts all in one package.',
-        moduleIds: ['job-cards', 'invoicing', 'employees', 'inventory'],
-        price: { monthly: 89, yearly: 890 },
-    },
-    {
-        id: 'job-card-management',
-        name: 'Job Card Management',
-        icon: '📋',
-        desc: 'Manage and share job cards across the Mechanics-on-Wheels network via the Global Database.',
-        moduleIds: ['job-cards', 'global-db'],
-        price: { monthly: 55, yearly: 550 },
-    },
-    {
-        id: 'vehicle-management',
-        name: 'Vehicle Management',
-        icon: '🚗',
-        desc: 'Link customers to their vehicles and keep a complete service history with job cards.',
-        moduleIds: ['crm', 'job-cards'],
-        price: { monthly: 45, yearly: 450 },
-    },
-]
+export function useModuleGroups(shopId?: string) {
+    return useQuery({
+        queryKey: ['catalogue', 'module-groups', shopId],
+        queryFn: async (): Promise<ModuleGroup[]> => {
+            if (!shopId) return []
+            const { data } = await shopApiClient.get<any[]>(`/shops/${shopId}/module-groups`)
+            return data.map(g => ({
+                id: g.id,
+                name: g.name,
+                icon: g.icon,
+                desc: g.desc,
+                moduleIds: g.moduleIds,
+                price: g.price,
+                shopId: g.shop_id
+            }))
+        },
+        enabled: !!shopId,
+        staleTime: 1000 * 60 * 5,
+    })
+}
+
+export function useCreateModuleGroup() {
+    return useMutation({
+        mutationFn: async (params: { shopId: string, payload: any }) => {
+            const { data } = await shopApiClient.post(`/shops/${params.shopId}/module-groups`, params.payload)
+            return data
+        }
+    })
+}

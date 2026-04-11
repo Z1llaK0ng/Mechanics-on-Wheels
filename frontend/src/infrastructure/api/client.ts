@@ -1,5 +1,6 @@
 import axios from 'axios'
 import { useAuthStore } from '../store/authStore'
+import { useShopAuthStore } from '../../presentation/hooks/useShopAuth'
 
 const BASE_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:8000/api/v1'
 
@@ -10,7 +11,15 @@ export const apiClient = axios.create({
 
 // ─── Request interceptor: attach JWT ──────────────────────────────────────
 apiClient.interceptors.request.use((config) => {
-    const token = useAuthStore.getState().token
+    // Skip if token is already explicitly provided
+    if (config.headers.Authorization) {
+        return config
+    }
+
+    let token = useAuthStore.getState().token
+    if (!token) {
+        token = useShopAuthStore.getState().token
+    }
     if (token) {
         config.headers.Authorization = `Bearer ${token}`
     }
@@ -22,8 +31,13 @@ apiClient.interceptors.response.use(
     (response) => response,
     (error) => {
         if (error.response?.status === 401) {
-            useAuthStore.getState().logout()
-            window.location.href = '/login'
+            if (window.location.pathname.startsWith('/shop')) {
+                useShopAuthStore.getState().logout()
+                window.location.href = '/shop/login'
+            } else {
+                useAuthStore.getState().logout()
+                window.location.href = '/login'
+            }
         }
         return Promise.reject(error)
     }

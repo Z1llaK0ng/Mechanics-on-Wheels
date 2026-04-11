@@ -46,8 +46,8 @@ def decode_access_token(token: str) -> Optional[dict]:
 
 async def get_current_user(token: str = Depends(oauth2_scheme)) -> dict:
     """
-    Validate JWT and return the mechanic document dict from Appwrite.
-    The returned dict has the same keys as the Appwrite document fields.
+    Validate JWT and return the user document dict from Appwrite.
+    Supports both Mechanics and Shop Admins for unified endpoints.
     """
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
@@ -63,25 +63,61 @@ async def get_current_user(token: str = Depends(oauth2_scheme)) -> dict:
     if email is None:
         raise credentials_exception
 
-    # Appwrite lookup by email
+    role: Optional[str] = payload.get("role")
+
     try:
-        result = databases.list_documents(
-            database_id=DB_ID,
-            collection_id=COL_MECHANICS,
-            queries=[Query.equal("email", email)]
-        )
+        if role == "admin":
+            # For admin tokens, the JWT already carries all needed claims.
+            # Skip the Appwrite lookup — it can fail silently and produce a 401.
+            shop_id: Optional[str] = payload.get("shop_id")
+            if not shop_id:
+                raise credentials_exception
+            return {
+                "$id": shop_id,
+                "email": email,
+                "shop_id": shop_id,
+                "shop_name": payload.get("shop_name", ""),
+                "active_status": True,
+                "role": "admin",
+            }
+        else:
+            shop_id = payload.get("shop_id")
+            if not shop_id:
+                raise credentials_exception
+
+            result = databases.list_documents(
+                database_id=DB_ID,
+                collection_id=COL_MECHANICS,
+                queries=[
+                    Query.equal("email", email),
+                    Query.equal("shop_id", shop_id)
+                ]
+            )
+            docs = result["documents"]
+            if not docs:
+                raise credentials_exception
+
+            doc = docs[0]
+            # Build a plain dict — Appwrite Document objects don't implement full dict interface
+            user = {
+                "$id": doc["$id"],
+                "email": doc.get("email", ""),
+                "first_name": doc.get("first_name", ""),
+                "last_name": doc.get("last_name", ""),
+                "shop_id": doc.get("shop_id", ""),
+                "active_status": doc.get("active_status", False),
+                "staffrole": doc.get("staffrole", "technician"),
+                "permitted_modules": doc.get("permitted_modules", []),
+                "can_push_global_db": doc.get("can_push_global_db", False),
+                "role": "mechanic",
+            }
+            if not user["active_status"]:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Inactive user account"
+                )
+            return user
+    except HTTPException:
+        raise
     except Exception:
         raise credentials_exception
-
-    docs = result.get("documents", [])
-    if not docs:
-        raise credentials_exception
-
-    user = docs[0]
-    if not user.get("active_status", False):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Inactive user account"
-        )
-
-    return user

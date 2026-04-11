@@ -35,7 +35,7 @@ def _subscribed_module_ids(shop_id: str) -> list[str]:
         collection_id=COL_ACTIVE_SUBS,
         queries=[Query.equal("shop_id", shop_id)]
     )
-    return [doc["subscription_id"] for doc in result.get("documents", [])]
+    return [doc["subscription_id"] for doc in result["documents"]]
 
 
 # ── Register shop ─────────────────────────────────────────────────────────────
@@ -57,7 +57,7 @@ def shop_register(payload: ShopCreate):
         collection_id=COL_SHOP,
         queries=[Query.equal("email", payload.email)]
     )
-    if existing_email.get("total", 0) > 0:
+    if existing_email["total"] > 0:
         raise HTTPException(status_code=400, detail="A shop with this email already exists.")
 
     # Check name uniqueness
@@ -66,7 +66,7 @@ def shop_register(payload: ShopCreate):
         collection_id=COL_SHOP,
         queries=[Query.equal("shop_name", payload.shop_name)]
     )
-    if existing_name.get("total", 0) > 0:
+    if existing_name["total"] > 0:
         raise HTTPException(status_code=400, detail="A shop with this name already exists.")
 
     doc = databases.create_document(
@@ -107,7 +107,7 @@ def shop_login(
             collection_id=COL_SHOP,
             queries=[Query.equal("email", username)]
         )
-        docs = result.get("documents", [])
+        docs = result["documents"]
         if not docs or not verify_password(password, docs[0]["hashed_password"]):
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
@@ -144,7 +144,7 @@ def shop_login(
             collection_id=COL_SHOP,
             queries=[Query.equal("$id", shop_id)]
         )
-        shop_docs = shop_result.get("documents", [])
+        shop_docs = shop_result["documents"]
         if not shop_docs:
             # Try by document ID directly
             try:
@@ -164,7 +164,7 @@ def shop_login(
                 Query.equal("shop_id", shop_id),
             ]
         )
-        mec_docs = mec_result.get("documents", [])
+        mec_docs = mec_result["documents"]
         if not mec_docs or not verify_password(password, mec_docs[0]["hashed_password"]):
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
@@ -196,6 +196,8 @@ def shop_login(
                 shopId=shop_id,
                 shopName=shop.get("shop_name", ""),
                 subscribedModules=modules,
+                permittedModules=mechanic.get("permitted_modules", []),
+                staffrole=mechanic.get("staffrole", "technician"),
             ),
         )
 

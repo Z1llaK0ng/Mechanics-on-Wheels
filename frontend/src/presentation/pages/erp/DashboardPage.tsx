@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../../../infrastructure/store/authStore'
@@ -9,6 +10,8 @@ export default function DashboardPage() {
     const mechanic = useAuthStore((s) => s.mechanic)
     const navigate = useNavigate()
     const { data: modules } = useModules()
+
+    const [modal, setModal] = useState<{ title: string; message: string; emoji: string } | null>(null)
 
     const { data: jobCards } = useQuery({
         queryKey: ['job-cards', 'dashboard'],
@@ -22,11 +25,38 @@ export default function DashboardPage() {
     const inProgress = jobCards?.filter(j => j.status === 'in-progress').length ?? 0
     const completed = jobCards?.filter(j => j.status === 'completed').length ?? 0
 
+    const hasCRM = modules?.some(m =>
+        m.routeKey === 'crm' ||
+        m.subscription?.name?.toLowerCase().includes('customer')
+    ) ?? false
+
     const greeting = () => {
         const h = new Date().getHours()
         if (h < 12) return 'Good morning'
         if (h < 17) return 'Good afternoon'
         return 'Good evening'
+    }
+
+    const handleRegisterVehicle = () => {
+        if (!hasCRM) {
+            setModal({
+                emoji: '🔒',
+                title: 'Module Not Available',
+                message:
+                    'The Customer Relations module has not been purchased for your shop. ' +
+                    'Please contact your shop administrator to activate this module in order to register vehicles.',
+            })
+            return
+        }
+        navigate('/vehicles')
+    }
+
+    const handleDownloadApp = () => {
+        setModal({
+            emoji: '🚀',
+            title: 'Coming Soon',
+            message: 'The mobile app download is coming in a future update. Stay tuned!',
+        })
     }
 
     return (
@@ -40,8 +70,8 @@ export default function DashboardPage() {
             {/* Stat cards */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(200px,1fr))', gap: 16, marginBottom: 32 }}>
                 <StatCard label="Pending Jobs" value={pending} color="var(--warning)" emoji="⏳" onClick={() => navigate('/job-cards')} />
-                <StatCard label="In Progress" value={inProgress} color="var(--info)" emoji="🔨" onClick={() => navigate('/job-cards')} />
-                <StatCard label="Completed" value={completed} color="var(--success)" emoji="✅" onClick={() => navigate('/job-cards')} />
+                <StatCard label="Jobs In Progress" value={inProgress} color="var(--info)" emoji="🔨" onClick={() => navigate('/job-cards')} />
+                <StatCard label="Completed Jobs" value={completed} color="var(--success)" emoji="✅" onClick={() => navigate('/job-cards')} />
                 <StatCard label="Active Modules" value={modules?.length ?? 0} color="var(--accent-light)" emoji="📦" onClick={() => navigate('/modules')} />
             </div>
 
@@ -60,13 +90,14 @@ export default function DashboardPage() {
                     emoji="🚗"
                     title="Register Vehicle"
                     description="Add a new vehicle to the workshop registry"
-                    onClick={() => navigate('/vehicles')}
+                    locked={!hasCRM}
+                    onClick={handleRegisterVehicle}
                 />
                 <ActionCard
                     emoji="📱"
                     title="Download App"
                     description="Install the offline PWA to your device"
-                    onClick={() => navigate('/download-pwa')}
+                    onClick={handleDownloadApp}
                 />
             </div>
 
@@ -100,9 +131,21 @@ export default function DashboardPage() {
                     </div>
                 </>
             )}
+
+            {/* Info Modal */}
+            {modal && (
+                <InfoModal
+                    emoji={modal.emoji}
+                    title={modal.title}
+                    message={modal.message}
+                    onClose={() => setModal(null)}
+                />
+            )}
         </div>
     )
 }
+
+/* ── Sub-components ─────────────────────────────────────────────────────── */
 
 function StatCard({ label, value, color, emoji, onClick }: {
     label: string; value: number; color: string; emoji: string; onClick: () => void
@@ -116,14 +159,54 @@ function StatCard({ label, value, color, emoji, onClick }: {
     )
 }
 
-function ActionCard({ emoji, title, description, onClick }: {
-    emoji: string; title: string; description: string; onClick: () => void
+function ActionCard({ emoji, title, description, locked = false, onClick }: {
+    emoji: string; title: string; description: string; locked?: boolean; onClick: () => void
 }) {
     return (
-        <div className="card" style={{ cursor: 'pointer' }} onClick={onClick}>
-            <div style={{ fontSize: 28, marginBottom: 12 }}>{emoji}</div>
+        <div
+            className="card"
+            style={{ cursor: 'pointer', position: 'relative', opacity: locked ? 0.85 : 1 }}
+            onClick={onClick}
+        >
+            <div style={{ fontSize: 28, marginBottom: 12 }}>
+                {emoji}
+                {locked && <span style={{ fontSize: 14, marginLeft: 6 }}>🔒</span>}
+            </div>
             <div style={{ fontWeight: 700, marginBottom: 4 }}>{title}</div>
             <div className="text-sm text-muted">{description}</div>
+        </div>
+    )
+}
+
+function InfoModal({ emoji, title, message, onClose }: {
+    emoji: string; title: string; message: string; onClose: () => void
+}) {
+    return (
+        <div
+            style={{
+                position: 'fixed', inset: 0, zIndex: 1000,
+                background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(4px)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                padding: 24,
+            }}
+            onClick={onClose}
+        >
+            <div
+                className="card"
+                style={{
+                    maxWidth: 420, width: '100%', textAlign: 'center',
+                    padding: '36px 32px', borderRadius: 20,
+                    boxShadow: '0 20px 60px rgba(0,0,0,0.4)',
+                }}
+                onClick={e => e.stopPropagation()}
+            >
+                <div style={{ fontSize: 52, marginBottom: 16 }}>{emoji}</div>
+                <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 12 }}>{title}</h2>
+                <p style={{ color: 'var(--text-secondary)', lineHeight: 1.6, marginBottom: 28 }}>{message}</p>
+                <button className="btn btn-primary" style={{ width: '100%' }} onClick={onClose}>
+                    Got it
+                </button>
+            </div>
         </div>
     )
 }

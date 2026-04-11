@@ -2,8 +2,10 @@ import { useQuery } from '@tanstack/react-query'
 import apiClient from '../../infrastructure/api/client'
 import type { ActiveSub, AppModule } from '../../domain/types'
 
-const MODULE_META: Record<string, { features: { label: string; icon: string }[]; routeKey: string }> = {
+const MODULE_META: Record<string, { shortName: string; icon: string; features: { label: string; icon: string }[]; routeKey: string }> = {
     'Job Card Management': {
+        shortName: 'Job Cards',
+        icon: '🔧',
         routeKey: 'job-cards',
         features: [
             { label: 'Create & track job cards', icon: '📋' },
@@ -12,6 +14,8 @@ const MODULE_META: Record<string, { features: { label: string; icon: string }[];
         ]
     },
     'Vehicle Registry': {
+        shortName: 'Vehicles',
+        icon: '🚗',
         routeKey: 'vehicles',
         features: [
             { label: 'VIN & plate lookup', icon: '🚗' },
@@ -20,6 +24,8 @@ const MODULE_META: Record<string, { features: { label: string; icon: string }[];
         ]
     },
     'Inventory Management': {
+        shortName: 'Inventory',
+        icon: '🔧',
         routeKey: 'inventory',
         features: [
             { label: 'Parts stock tracking', icon: '🔧' },
@@ -28,19 +34,29 @@ const MODULE_META: Record<string, { features: { label: string; icon: string }[];
         ]
     },
     'Analytics Dashboard': {
+        shortName: 'Analytics',
+        icon: '📈',
         routeKey: 'analytics',
         features: [
             { label: 'Revenue charts', icon: '📈' },
             { label: 'Mechanic productivity', icon: '⚡' },
             { label: 'GDP export feeds', icon: '🌍' }
         ]
+    },
+    'Global Database': {
+        shortName: 'Global DB',
+        icon: '🌐',
+        routeKey: 'global-db',
+        features: [
+            { label: 'Cross-shop job card visibility', icon: '🔍' },
+            { label: 'DVLA & VIN car registry', icon: '🚗' },
+            { label: 'Work & parts history', icon: '📋' },
+            { label: 'Network-wide search', icon: '🔗' }
+        ]
     }
 }
 
-const DEFAULT_META = {
-    routeKey: 'dashboard',
-    features: [{ label: 'Core ERP features', icon: '⚙️' }]
-}
+
 
 export function useModules() {
     return useQuery({
@@ -48,16 +64,18 @@ export function useModules() {
         queryFn: async () => {
             const { data } = await apiClient.get<ActiveSub[]>('/subscriptions/me')
             const modules: AppModule[] = data.map((sub) => {
-                const meta = MODULE_META[sub.subscription.name] ?? DEFAULT_META
+                const meta = MODULE_META[sub.subscription.name]
                 return {
                     subscription: sub.subscription,
                     activeSince: sub.date_of_activation,
-                    features: meta.features,
-                    routeKey: meta.routeKey
+                    features: meta ? meta.features : [],
+                    routeKey: meta ? meta.routeKey : sub.subscription.name.toLowerCase().replace(/\s+/g, '-'),
+                    icon: meta ? meta.icon : '📦',
+                    shortName: meta ? meta.shortName : sub.subscription.name
                 }
             })
             return modules
         },
-        staleTime: 1000 * 60 * 5 // 5 min
+        staleTime: 1000 * 30 // 30 seconds — keeps it snappy without hammering the API
     })
 }

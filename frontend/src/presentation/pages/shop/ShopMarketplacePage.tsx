@@ -1,9 +1,10 @@
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, useEffect } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
     useShopAuthStore,
     useModulesCatalogue,
-    ALL_MODULE_GROUPS,
+    useModuleGroups,
+    useCreateModuleGroup,
     MODULE_REQUIREMENTS,
     type CatalogueModule,
     type ModuleGroup,
@@ -155,6 +156,9 @@ function GroupDetailOverlay({ group, period, modById }: { group: ModuleGroup; pe
 const ICONS = ['⚙️', '🏗️', '🛠️', '🗂️', '📁', '🔩', '🚘', '💼', '🧰', '📌']
 
 function CreateGroupTab({ catalogue, modById }: { catalogue: CatalogueModule[]; modById: (id: string) => CatalogueModule | undefined }) {
+    const user = useShopAuthStore((s) => s.user)
+    const qc = useQueryClient()
+    const createMutation = useCreateModuleGroup()
     const [name, setName] = useState('')
     const [icon, setIcon] = useState(ICONS[0])
     const [desc, setDesc] = useState('')
@@ -198,19 +202,33 @@ function CreateGroupTab({ catalogue, modById }: { catalogue: CatalogueModule[]; 
     const bundleMonthly = Math.round(totalMonthly * 0.9)
     const bundleYearly  = bundleMonthly * 10
 
-    const handleSave = () => {
+    const handleSave = async () => {
         const errs = validate()
         if (errs.length > 0) { setErrors(errs); return }
 
-        const newGroup: ModuleGroup = {
-            id:        `custom-${Date.now()}`,
-            name:      name.trim(),
+        const payload = {
+            name: name.trim(),
             icon,
-            desc:      desc.trim() || `Custom group: ${name.trim()}`,
-            moduleIds: Array.from(selected),
-            price:     { monthly: bundleMonthly, yearly: bundleYearly },
+            desc: desc.trim() || `Custom group: ${name.trim()}`,
+            module_ids: Array.from(selected),
+            price_monthly: bundleMonthly,
+            price_yearly: bundleYearly,
         }
-        setSaved(newGroup)
+
+        try {
+            await createMutation.mutateAsync({ shopId: user!.shopId, payload })
+            qc.invalidateQueries({ queryKey: ['catalogue', 'module-groups'] })
+            setSaved({
+                id: 'success-id',
+                name: payload.name,
+                icon: payload.icon,
+                desc: payload.desc,
+                moduleIds: payload.module_ids,
+                price: { monthly: payload.price_monthly, yearly: payload.price_yearly }
+            })
+        } catch (e: any) {
+            setErrors([`Failed to create group: ${e.response?.data?.detail || e.message}`])
+        }
     }
 
     const handleReset = () => {
@@ -372,6 +390,56 @@ function CreateGroupTab({ catalogue, modById }: { catalogue: CatalogueModule[]; 
 // ═══════════════════════════════════════════════════════════════════════════════
 // Main page
 // ═══════════════════════════════════════════════════════════════════════════════
+
+function GroupCard({
+    group, isActive, period, modById, openConfirm, cancelMutation, getActiveSubId
+}: {
+    group: ModuleGroup
+    isActive: boolean
+    period: 'monthly' | 'yearly'
+    modById: (id: string) => CatalogueModule | undefined
+    openConfirm: (id: string, type: 'group' | 'module') => void
+    cancelMutation: any
+    getActiveSubId: (baseId: string) => string
+}) {
+    return (
+        <HoverCardWrapper
+            overlay={<GroupDetailOverlay group={group} period={period} modById={modById} />}
+        >
+            <div className={`shop-module-card shop-group-card ${isActive ? 'active' : ''}`}>
+                <div className="shop-module-card-header">
+                    <span className="shop-module-icon">{group.icon}</span>
+                    <span className="badge badge-accent">Bundle</span>
+                    {isActive && <span className="badge badge-success">Active</span>}
+                </div>
+                <h3 className="shop-module-name">{group.name}</h3>
+                <p className="shop-module-desc">{group.desc}</p>
+
+                <div className="shop-module-price">
+                    <span className="shop-price-amount">GH₵ {group.price[period]}</span>
+                    <span className="shop-price-period">/ {period === 'monthly' ? 'mo' : 'yr'}</span>
+                </div>
+
+                <div style={{ marginTop: 'auto', paddingTop: 16 }}>
+                    {isActive ? (
+                        <button
+                            className="btn btn-danger w-full"
+                            onClick={() =>
+                                group.moduleIds.forEach((mid: string) => cancelMutation.mutate(getActiveSubId(mid)))
+                            }
+                        >Cancel Bundle</button>
+                    ) : (
+                        <button
+                            className="btn btn-primary w-full"
+                            onClick={() => openConfirm(group.id, 'group')}
+                        >Subscribe to Bundle</button>
+                    )}
+                </div>
+            </div>
+        </HoverCardWrapper>
+    )
+}
+
 export default function ShopMarketplacePage() {
     const user = useShopAuthStore((s) => s.user)
     const qc = useQueryClient()
@@ -379,55 +447,73 @@ export default function ShopMarketplacePage() {
     const [tab, setTab] = useState<MarketTab>('individual')
     const [confirmId, setConfirmId] = useState<string | null>(null)
     const [confirmType, setConfirmType] = useState<'module' | 'group'>('module')
+    const [msg, setMsg] = useState<{text: string, type: 'success' | 'error'} | null>(null)
+
     const { data: catalogue = [] } = useModulesCatalogue()
+    const { data: moduleGroups = [] } = useModuleGroups(user?.shopId)
+    
+    // Auto-dismiss msg
+    useEffect(() => {
+        if (msg) {
+            const t = setTimeout(() => setMsg(null), 4000)
+            return () => clearTimeout(t)
+        }
+    }, [msg])
     
     // Helper: look up a module by id
     const modById = useCallback((id: string) => catalogue.find(m => m.id === id), [catalogue])
 
-    // Calculate group pricing dynamically based on the current catalogue prices
-    const dynamicGroups = ALL_MODULE_GROUPS.map(group => {
-        const sumMonthly = group.moduleIds.reduce((sum, id) => sum + (modById(id)?.price.monthly || 0), 0)
-        return {
-            ...group,
-            price: {
-                monthly: Math.round(sumMonthly * 0.9), // 10% discount
-                yearly: Math.round(sumMonthly * 0.9) * 10
-            }
-        }
-    })
-
-    const { data: subscribedModules } = useQuery({
+    const { data: subscribedModules = [] } = useQuery({
         queryKey: ['shop', 'subscriptions'],
         enabled: !!user,
-        queryFn: async () => user?.subscribedModules ?? [],
+        queryFn: async (): Promise<string[]> => {
+            const { data } = await shopApiClient.get<string[]>('/subscriptions/shop-active')
+            return data
+        },
     })
 
-    const subscribed = new Set(subscribedModules ?? [])
+    const subscribed = new Set((subscribedModules ?? []).map((id: string) => id.split('_')[0]))
+
+    const getActiveSubId = useCallback((baseId: string) => {
+        return (subscribedModules ?? []).find((id: string) => id.startsWith(`${baseId}_`)) || baseId
+    }, [subscribedModules])
 
     const confirmMod   = confirmType === 'module' ? modById(confirmId!) : null
-    const confirmGroup = confirmType === 'group'  ? ALL_MODULE_GROUPS.find(g => g.id === confirmId) : null
+    const confirmGroup = confirmType === 'group'  ? moduleGroups.find(g => g.id === confirmId) : null
 
     const subscribeMutation = useMutation({
         mutationFn: async (id: string) => {
             await shopApiClient.post('/subscriptions', { subscription_id: id })
         },
-        onSuccess: () => qc.invalidateQueries({ queryKey: ['shop', 'subscriptions'] }),
+        onSuccess: () => {
+            qc.invalidateQueries({ queryKey: ['shop', 'subscriptions'] })
+            setMsg({ text: '✅ Successfully subscribed to module!', type: 'success' })
+        },
+        onError: (e: any) => {
+            setMsg({ text: `❌ Subscription failed: ${e.response?.data?.detail || e.message}`, type: 'error' })
+        }
     })
 
     const cancelMutation = useMutation({
         mutationFn: async (id: string) => {
             await shopApiClient.delete(`/subscriptions/${id}`)
         },
-        onSuccess: () => qc.invalidateQueries({ queryKey: ['shop', 'subscriptions'] }),
+        onSuccess: () => {
+            qc.invalidateQueries({ queryKey: ['shop', 'subscriptions'] })
+            setMsg({ text: '✅ Subscription cancelled.', type: 'success' })
+        },
+        onError: (e: any) => {
+            setMsg({ text: `❌ Cancellation failed: ${e.response?.data?.detail || e.message}`, type: 'error' })
+        }
     })
 
     const handleSubscribeConfirm = () => {
         if (!confirmId) return
         if (confirmType === 'group') {
-            const group = ALL_MODULE_GROUPS.find(g => g.id === confirmId)
-            group?.moduleIds.forEach(mid => subscribeMutation.mutate(mid))
+            const group = moduleGroups.find(g => g.id === confirmId)
+            group?.moduleIds.forEach(mid => subscribeMutation.mutate(`${mid}_${period}`))
         } else {
-            subscribeMutation.mutate(confirmId)
+            subscribeMutation.mutate(`${confirmId}_${period}`)
         }
         setConfirmId(null)
     }
@@ -439,8 +525,27 @@ export default function ShopMarketplacePage() {
     const isGroupSubscribed = (moduleIds: string[]) =>
         moduleIds.every(mid => subscribed.has(mid))
 
+    const prebuiltGroups = moduleGroups.filter(g => g.shopId === 'pr3bu1lt')
+    const customGroups = moduleGroups.filter(g => g.shopId !== 'pr3bu1lt')
+
     return (
         <div className="fade-in">
+            {/* ── Toast Message ────────────────────────────────────────────── */}
+            {msg && (
+                <div style={{
+                    padding: '12px 20px',
+                    borderRadius: 8,
+                    marginBottom: 20,
+                    fontWeight: 500,
+                    backgroundColor: msg.type === 'error' ? 'var(--color-danger)' : 'var(--color-success)',
+                    color: '#fff',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 12
+                }}>
+                    {msg.text}
+                </div>
+            )}
             {/* ── Header ───────────────────────────────────────────────────── */}
             <div className="page-header">
                 <div className="page-header-row">
@@ -479,7 +584,7 @@ export default function ShopMarketplacePage() {
                         onClick={() => setTab('groups')}
                     >
                         📦 Module Groups
-                        <span className="shop-market-tab-count">{dynamicGroups.length}</span>
+                        <span className="shop-market-tab-count">{moduleGroups.length}</span>
                     </button>
                     <button
                         className={`shop-market-tab shop-market-tab-create ${tab === 'create' ? 'active' : ''}`}
@@ -499,18 +604,52 @@ export default function ShopMarketplacePage() {
 
             {/* ── Individual Modules ───────────────────────────────────────── */}
             {tab === 'individual' && (
-                <div className="shop-module-grid">
-                    {catalogue.map((mod: CatalogueModule) => {
-                        const isActive = subscribed.has(mod.id)
-                        return (
+                <>
+                    {subscribed.size > 0 && (
+                        <>
+                            <h2 style={{ marginTop: 24, marginBottom: 16 }}>✅ Your Subscribed Modules</h2>
+                            <div className="shop-module-grid" style={{ marginBottom: 40 }}>
+                                {catalogue.filter((m: CatalogueModule) => subscribed.has(m.id)).map((mod: CatalogueModule) => (
+                                    <HoverCardWrapper
+                                        key={`sub-${mod.id}`}
+                                        overlay={<ModuleDetailOverlay mod={mod} period={period} modById={modById} />}
+                                    >
+                                        <div className="shop-module-card active">
+                                            <div className="shop-module-card-header">
+                                                <span className="shop-module-icon">{mod.icon}</span>
+                                                <span className="badge badge-success">Active</span>
+                                            </div>
+                                            <h3 className="shop-module-name">{mod.name}</h3>
+                                            <p className="shop-module-desc">{mod.desc}</p>
+
+                                            <div className="shop-module-price">
+                                                <span className="shop-price-amount">GH₵ {mod.price[period]}</span>
+                                                <span className="shop-price-period">/ {period === 'monthly' ? 'mo' : 'yr'}</span>
+                                            </div>
+
+                                            <div style={{ marginTop: 'auto', paddingTop: 16 }}>
+                                                <button
+                                                    className="btn btn-danger w-full"
+                                                    onClick={() => cancelMutation.mutate(getActiveSubId(mod.id))}
+                                                >Cancel Subscription</button>
+                                            </div>
+                                        </div>
+                                    </HoverCardWrapper>
+                                ))}
+                            </div>
+                        </>
+                    )}
+
+                    <h2 style={{ marginTop: 24, marginBottom: 16 }}>{subscribed.size > 0 ? 'Explore More Modules' : 'All Modules'}</h2>
+                    <div className="shop-module-grid">
+                        {catalogue.filter((m: CatalogueModule) => !subscribed.has(m.id)).map((mod: CatalogueModule) => (
                             <HoverCardWrapper
                                 key={mod.id}
                                 overlay={<ModuleDetailOverlay mod={mod} period={period} modById={modById} />}
                             >
-                                <div className={`shop-module-card ${isActive ? 'active' : ''}`}>
+                                <div className="shop-module-card">
                                     <div className="shop-module-card-header">
                                         <span className="shop-module-icon">{mod.icon}</span>
-                                        {isActive && <span className="badge badge-success">Active</span>}
                                     </div>
                                     <h3 className="shop-module-name">{mod.name}</h3>
                                     <p className="shop-module-desc">{mod.desc}</p>
@@ -531,23 +670,16 @@ export default function ShopMarketplacePage() {
                                     </div>
 
                                     <div style={{ marginTop: 'auto', paddingTop: 16 }}>
-                                        {isActive ? (
-                                            <button
-                                                className="btn btn-danger w-full"
-                                                onClick={() => cancelMutation.mutate(mod.id)}
-                                            >Cancel Subscription</button>
-                                        ) : (
-                                            <button
-                                                className="btn btn-primary w-full"
-                                                onClick={() => openConfirm(mod.id, 'module')}
-                                            >Subscribe</button>
-                                        )}
+                                        <button
+                                            className="btn btn-primary w-full"
+                                            onClick={() => openConfirm(mod.id, 'module')}
+                                        >Subscribe</button>
                                     </div>
                                 </div>
                             </HoverCardWrapper>
-                        )
-                    })}
-                </div>
+                        ))}
+                    </div>
+                </>
             )}
 
             {/* ── Module Groups ────────────────────────────────────────────── */}
@@ -559,47 +691,34 @@ export default function ShopMarketplacePage() {
                         Groups with <strong>Invoicing</strong> always include Job Cards &amp; Parts.
                         Groups with <strong>Global Database</strong> always include Job Cards.
                     </div>
+                    {customGroups.length > 0 && (
+                        <>
+                            <h2 style={{ marginTop: 24, marginBottom: 16 }}>Your Custom Module Groups</h2>
+                            <div className="shop-module-grid">
+                                {customGroups.map((group: ModuleGroup) => (
+                                    <GroupCard
+                                        key={group.id} group={group}
+                                        isActive={isGroupSubscribed(group.moduleIds)}
+                                        period={period} modById={modById}
+                                        openConfirm={openConfirm} cancelMutation={cancelMutation}
+                                        getActiveSubId={getActiveSubId}
+                                    />
+                                ))}
+                            </div>
+                            <hr className="dashboard-divider" style={{ margin: '32px 0' }} />
+                        </>
+                    )}
+                    <h2 style={{ marginTop: customGroups.length ? 0 : 24, marginBottom: 16 }}>Pre-Built Bundles</h2>
                     <div className="shop-module-grid">
-                        {dynamicGroups.map((group: ModuleGroup) => {
-                            const isActive = isGroupSubscribed(group.moduleIds)
-                            return (
-                                <HoverCardWrapper
-                                    key={group.id}
-                                    overlay={<GroupDetailOverlay group={group} period={period} modById={modById} />}
-                                >
-                                    <div className={`shop-module-card shop-group-card ${isActive ? 'active' : ''}`}>
-                                        <div className="shop-module-card-header">
-                                            <span className="shop-module-icon">{group.icon}</span>
-                                            <span className="badge badge-accent">Bundle</span>
-                                            {isActive && <span className="badge badge-success">Active</span>}
-                                        </div>
-                                        <h3 className="shop-module-name">{group.name}</h3>
-                                        <p className="shop-module-desc">{group.desc}</p>
-
-                                        <div className="shop-module-price">
-                                            <span className="shop-price-amount">GH₵ {group.price[period]}</span>
-                                            <span className="shop-price-period">/ {period === 'monthly' ? 'mo' : 'yr'}</span>
-                                        </div>
-
-                                        <div style={{ marginTop: 'auto', paddingTop: 16 }}>
-                                            {isActive ? (
-                                                <button
-                                                    className="btn btn-danger w-full"
-                                                    onClick={() =>
-                                                        group.moduleIds.forEach(mid => cancelMutation.mutate(mid))
-                                                    }
-                                                >Cancel Bundle</button>
-                                            ) : (
-                                                <button
-                                                    className="btn btn-primary w-full"
-                                                    onClick={() => openConfirm(group.id, 'group')}
-                                                >Subscribe to Bundle</button>
-                                            )}
-                                        </div>
-                                    </div>
-                                </HoverCardWrapper>
-                            )
-                        })}
+                        {prebuiltGroups.map((group: ModuleGroup) => (
+                            <GroupCard
+                                key={group.id} group={group}
+                                isActive={isGroupSubscribed(group.moduleIds)}
+                                period={period} modById={modById}
+                                openConfirm={openConfirm} cancelMutation={cancelMutation}
+                                getActiveSubId={getActiveSubId}
+                            />
+                        ))}
                     </div>
                 </>
             )}

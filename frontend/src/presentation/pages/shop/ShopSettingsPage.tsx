@@ -1,23 +1,14 @@
 import { useState } from 'react'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation } from '@tanstack/react-query'
 import { useShopAuthStore } from '../../hooks/useShopAuth'
 import shopApiClient from '../../../infrastructure/api/shopClient'
 
-interface MechanicRow {
-    id: string
-    name: string
-    email: string
-    active: boolean
-}
 
 export default function ShopSettingsPage() {
     const user = useShopAuthStore((s) => s.user)
     const [shopName, setShopName] = useState(user?.shopName ?? '')
     const [location, setLocation] = useState('')
     const [saved, setSaved] = useState(false)
-    const [showAddMechanic, setShowAddMechanic] = useState(false)
-    const [newMechanic, setNewMechanic] = useState({ name: '', email: '', password: '' })
-    const [addError, setAddError] = useState('')
     const [copied, setCopied] = useState(false)
 
     // Password change
@@ -25,22 +16,6 @@ export default function ShopSettingsPage() {
     const [pwMsg, setPwMsg] = useState<{ text: string; ok: boolean } | null>(null)
 
     const shopId = user?.shopId ?? '—'
-    const qc = useQueryClient()
-
-    const { data: mechanics = [], isLoading: mechanicsLoading } = useQuery<MechanicRow[]>({
-        queryKey: ['shop', 'mechanics', user?.shopId],
-        enabled: !!user?.shopId,
-        queryFn: async () => {
-            if (!user?.shopId) return []
-            const { data } = await shopApiClient.get(`/shops/${user.shopId}/mechanics`)
-            return data.map((m: any) => ({
-                id: m.id,
-                name: m.full_name ?? `${m.first_name} ${m.last_name}`.trim(),
-                email: m.email,
-                active: m.active_status,
-            }))
-        },
-    })
 
     const copyShopId = () => {
         navigator.clipboard.writeText(shopId)
@@ -57,45 +32,6 @@ export default function ShopSettingsPage() {
             setSaved(true)
             setTimeout(() => setSaved(false), 2500)
         },
-    })
-
-    const toggleMechanicMutation = useMutation({
-        mutationFn: async (id: string) => {
-            await shopApiClient.patch(`/shops/mechanics/${id}`)
-        },
-        onSuccess: () => {
-            qc.invalidateQueries({ queryKey: ['shop', 'mechanics', user?.shopId] })
-        },
-    })
-
-    const removeMechanicMutation = useMutation({
-        mutationFn: async (id: string) => {
-            await shopApiClient.delete(`/shops/mechanics/${id}`)
-        },
-        onSuccess: () => {
-            qc.invalidateQueries({ queryKey: ['shop', 'mechanics', user?.shopId] })
-        },
-    })
-
-    const addMechanicMutation = useMutation({
-        mutationFn: async (payload: { name: string; email: string; password: string }) => {
-            if (!user?.shopId) return
-            await shopApiClient.post(`/shops/${user.shopId}/mechanics`, {
-                full_name: payload.name,
-                email: payload.email,
-                password: payload.password,
-            })
-        },
-        onSuccess: () => {
-            qc.invalidateQueries({ queryKey: ['shop', 'mechanics', user?.shopId] })
-            setNewMechanic({ name: '', email: '', password: '' })
-            setShowAddMechanic(false)
-            setAddError('')
-            alert('Mechanic added successfully!')
-        },
-        onError: (error: any) => {
-            setAddError(error?.response?.data?.detail || 'Failed to add mechanic. Please try again.')
-        }
     })
 
     const changePasswordMutation = useMutation({
@@ -131,25 +67,11 @@ export default function ShopSettingsPage() {
         changePasswordMutation.mutate({ current_password: pwForm.current, new_password: pwForm.next })
     }
 
-    const toggleMechanic = (id: string) => {
-        toggleMechanicMutation.mutate(id)
-    }
-
-    const removeMechanic = (id: string) => {
-        if (!window.confirm('Remove this mechanic?')) return
-        removeMechanicMutation.mutate(id)
-    }
-
-    const addMechanic = (e: React.FormEvent) => {
-        e.preventDefault()
-        addMechanicMutation.mutate(newMechanic)
-    }
-
     return (
         <div className="fade-in">
             <div className="page-header">
                 <h1>Shop Settings</h1>
-                <p>Manage your shop details and mechanics</p>
+                <p>Manage your shop details</p>
             </div>
 
             {/* ── Shop ID ── */}
@@ -175,13 +97,13 @@ export default function ShopSettingsPage() {
                 </p>
                 <div style={{ marginTop: 12 }}>
                     <a
-                        href="/shop/login"
+                        href="/login"
                         target="_blank"
                         rel="noopener noreferrer"
                         className="btn btn-secondary"
                         style={{ display: 'inline-flex', alignItems: 'center', gap: 8, textDecoration: 'none' }}
                     >
-                        🔗 Open Mechanic Login Page
+                        🔗 Shop Staff Login Page
                     </a>
                 </div>
             </div>
@@ -210,92 +132,6 @@ export default function ShopSettingsPage() {
                     </div>
                 </form>
             </div>
-
-            {/* ── Mechanics ── */}
-            <div className="card">
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                        Mechanics ({mechanics.length})
-                    </div>
-                    <button className="btn btn-primary btn-sm" onClick={() => setShowAddMechanic(true)}>
-                        + Add Mechanic
-                    </button>
-                </div>
-
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                    {mechanicsLoading && (
-                        <div className="loading-state" style={{ padding: '24px 0' }}>
-                            <span>Loading mechanics…</span>
-                        </div>
-                    )}
-                    {!mechanicsLoading && mechanics.map(mec => (
-                        <div key={mec.id} className="shop-mechanic-row">
-                            <div className="avatar" style={{ width: 36, height: 36, fontSize: 13 }}>
-                                {mec.name.split(' ').map((n: string) => n[0]).join('')}
-                            </div>
-                            <div style={{ flex: 1 }}>
-                                <div style={{ fontWeight: 600, fontSize: 14 }}>{mec.name}</div>
-                                <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{mec.email}</div>
-                            </div>
-                            <span className={`badge ${mec.active ? 'badge-success' : 'badge-warning'}`}>
-                                {mec.active ? 'Active' : 'Inactive'}
-                            </span>
-                            <label className="shop-toggle" title="Toggle active">
-                                <input type="checkbox" checked={mec.active} onChange={() => toggleMechanic(mec.id)} />
-                                <span className="shop-toggle-slider" />
-                            </label>
-                            <button className="btn btn-danger btn-sm" onClick={() => removeMechanic(mec.id)}>
-                                Remove
-                            </button>
-                        </div>
-                    ))}
-                    {!mechanicsLoading && mechanics.length === 0 && (
-                        <div className="loading-state" style={{ padding: '24px 0' }}>
-                            <span>No mechanics yet. Add one above.</span>
-                        </div>
-                    )}
-                </div>
-            </div>
-
-            {/* ── Add Mechanic Modal ── */}
-            {showAddMechanic && (
-                <div className="modal-backdrop" onClick={() => setShowAddMechanic(false)}>
-                    <div className="modal" onClick={e => e.stopPropagation()}>
-                        <div className="modal-header">
-                            <span className="modal-title">Add Mechanic</span>
-                            <button className="btn btn-ghost btn-sm" onClick={() => setShowAddMechanic(false)}>✕</button>
-                        </div>
-                        <form className="modal-form" onSubmit={addMechanic}>
-                            {addError && <div style={{ color: 'var(--danger)', marginBottom: '12px', fontSize: '13px' }}>{addError}</div>}
-                            <div className="form-group">
-                                <label className="form-label" htmlFor="add-mec-name">Full name</label>
-                                <input id="add-mec-name" type="text" className="form-input"
-                                    placeholder="Kofi Mensah" required
-                                    value={newMechanic.name}
-                                    onChange={e => setNewMechanic(p => ({ ...p, name: e.target.value }))} />
-                            </div>
-                            <div className="form-group">
-                                <label className="form-label" htmlFor="add-mec-email">Email</label>
-                                <input id="add-mec-email" type="email" className="form-input"
-                                    placeholder="kofi@myshop.gh" required
-                                    value={newMechanic.email}
-                                    onChange={e => setNewMechanic(p => ({ ...p, email: e.target.value }))} />
-                            </div>
-                            <div className="form-group">
-                                <label className="form-label" htmlFor="add-mec-pw">Temporary password</label>
-                                <input id="add-mec-pw" type="password" className="form-input"
-                                    placeholder="••••••••" required
-                                    value={newMechanic.password}
-                                    onChange={e => setNewMechanic(p => ({ ...p, password: e.target.value }))} />
-                            </div>
-                            <div className="modal-footer">
-                                <button type="button" className="btn btn-secondary" onClick={() => setShowAddMechanic(false)}>Cancel</button>
-                                <button type="submit" className="btn btn-primary">Add Mechanic</button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-            )}
 
             {/* ── Change Password ── */}
             <div className="card" style={{ marginTop: 24 }}>

@@ -78,6 +78,8 @@ class MechanicUserPayload(BaseModel):
     shopId: str
     shopName: str
     subscribedModules: List[str] = []
+    permittedModules: List[str] = []
+    staffrole: str = "technician"  # 'technician' | 'staff'
 
 
 MechanicLoginResponse.model_rebuild()

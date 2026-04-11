@@ -13,7 +13,9 @@ export interface Mechanic {
     last_name: string
     email: string
     shop_id: string
+    shop_name?: string
     active_status: boolean
+    staffrole?: string   // 'technician' | 'staff'
 }
 
 // ─── Shop ──────────────────────────────────────────────────────────────────
@@ -30,6 +32,7 @@ export interface Subscription {
     subscription_id: string
     name: string
     payment_period: string // e.g. "monthly" | "yearly"
+    description?: string
 }
 
 export interface ActiveSub {
@@ -49,10 +52,12 @@ export interface JobCard {
     vehicle_vin: string
     vehicle_registry: string
     upload_mechanic: string
+    shop_id?: string
     parts_affected: string
     details: string
     status: JobCardStatus
     created_at?: string
+    is_uploaded?: boolean
 }
 
 export interface JobCardCreate {
@@ -77,7 +82,36 @@ export interface Vehicle {
     model?: string
     year?: number
     owner_id?: string
+    company?: string
+    brand?: string
+    active_status?: boolean
 }
+
+// ─── Vehicle Owner (CRM) ───────────────────────────────────────────────────
+
+export interface VehicleOwner {
+    id: string
+    name: string
+    phone?: string
+    email?: string
+    shop_id?: string
+    vehicle_count: number
+}
+
+export interface VehicleOwnerDetail extends VehicleOwner {
+    vehicles: Vehicle[]
+}
+
+export interface NotifyResponse {
+    customer_name: string
+    customer_email?: string
+    customer_phone?: string
+    job_card_id: string
+    vehicle_registry: string
+    status: string
+    message: string
+}
+
 
 // ─── PWA ───────────────────────────────────────────────────────────────────
 
@@ -92,4 +126,6 @@ export interface AppModule {
     activeSince: string
     features: ModuleFeature[]
     routeKey: string // e.g. "job-cards" | "vehicles"
+    icon: string
+    shortName: string
 }

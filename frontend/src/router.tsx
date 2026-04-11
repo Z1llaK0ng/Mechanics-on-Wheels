@@ -1,21 +1,23 @@
 import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom'
 import { useAuthStore } from './infrastructure/store/authStore'
-import LoginPage from './presentation/pages/erp/LoginPage'
+import LoginPage from './presentation/pages/logins/LoginPage'
 import DashboardPage from './presentation/pages/erp/DashboardPage'
 import ModulesPage from './presentation/pages/erp/ModulesPage'
 import JobCardsPage from './presentation/pages/erp/JobCardsPage'
 import VehiclesPage from './presentation/pages/erp/VehiclesPage'
-import PWADownloadPage from './presentation/pages/erp/PWADownloadPage'
+import GlobalDbPage from './presentation/pages/erp/GlobalDbPage'
 import AppLayout from './presentation/components/AppLayout'
 import LandingPage from './presentation/pages/LandingPage'
 
 // ── Shop Portal ───────────────────────────────────────────────────────────────
-import ShopLoginPage from './presentation/pages/shop/ShopLoginPage'
-import ShopRegisterPage from './presentation/pages/shop/ShopRegisterPage'
+import ShopLoginPage from './presentation/pages/logins/ShopLoginPage'
+import ShopRegisterPage from './presentation/pages/logins/ShopRegisterPage'
 import ShopMarketplacePage from './presentation/pages/shop/ShopMarketplacePage'
 import ShopSubscriptionPage from './presentation/pages/shop/ShopSubscriptionPage'
 import ShopSettingsPage from './presentation/pages/shop/ShopSettingsPage'
+import ShopManagementPage from './presentation/pages/shop/ShopManagementPage'
 import MechanicModulesPage from './presentation/pages/shop/MechanicModulesPage'
+import ShopModuleWrapper from './presentation/pages/shop/ShopModuleWrapper'
 import ShopLayout from './presentation/components/ShopLayout'
 import { useShopAuthStore } from './presentation/hooks/useShopAuth'
 
@@ -33,6 +35,12 @@ function ShopPrivateRoute({ requiredRole }: { requiredRole?: 'admin' | 'mechanic
     return <Outlet />
 }
 
+// Any authenticated shop user (admin OR mechanic/staff)
+function ShopAuthRoute() {
+    const { isAuthenticated } = useShopAuthStore()
+    return isAuthenticated ? <Outlet /> : <Navigate to="/shop/login" replace />
+}
+
 export default function AppRouter() {
     return (
         <BrowserRouter>
@@ -46,16 +54,25 @@ export default function AppRouter() {
                 <Route path="/shop/login" element={<ShopLoginPage />} />
                 <Route path="/shop/register" element={<ShopRegisterPage />} />
 
-                {/* Admin-only */}
+                {/* Admin-only: marketplace + settings */}
                 <Route element={<ShopPrivateRoute requiredRole="admin" />}>
                     <Route element={<ShopLayout />}>
                         <Route path="/shop/marketplace" element={<ShopMarketplacePage />} />
-                        <Route path="/shop/subscriptions" element={<ShopSubscriptionPage />} />
                         <Route path="/shop/settings" element={<ShopSettingsPage />} />
                     </Route>
                 </Route>
 
-                {/* Mechanic-only */}
+                {/* Admin + Staff: subscriptions + management */}
+                <Route element={<ShopAuthRoute />}>
+                    <Route element={<ShopLayout />}>
+                        <Route path="/shop/subscriptions" element={<ShopSubscriptionPage />} />
+                        <Route path="/shop/management" element={<ShopManagementPage />} />
+                        {/* Render individual modules inside the shop frame */}
+                        <Route path="/shop/m/:moduleId" element={<ShopModuleWrapper />} />
+                    </Route>
+                </Route>
+
+                {/* Technician-only: modules */}
                 <Route element={<ShopPrivateRoute requiredRole="mechanic" />}>
                     <Route element={<ShopLayout />}>
                         <Route path="/shop/modules" element={<MechanicModulesPage />} />
@@ -69,7 +86,7 @@ export default function AppRouter() {
                         <Route path="/modules" element={<ModulesPage />} />
                         <Route path="/job-cards" element={<JobCardsPage />} />
                         <Route path="/vehicles" element={<VehiclesPage />} />
-                        <Route path="/download-pwa" element={<PWADownloadPage />} />
+                        <Route path="/global-db" element={<GlobalDbPage />} />
                     </Route>
                 </Route>
 

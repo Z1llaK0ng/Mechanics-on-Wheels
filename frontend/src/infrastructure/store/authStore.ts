@@ -28,7 +28,20 @@ export const useAuthStore = create<AuthState>()(
         }),
         {
             name: 'mow-auth', // localStorage key
-            partialize: (state) => ({ token: state.token, mechanic: state.mechanic })
+            // isAuthenticated MUST be persisted — without it every reload
+            // resets it to false and PrivateRoute redirects to /login.
+            partialize: (state) => ({
+                token: state.token,
+                mechanic: state.mechanic,
+                isAuthenticated: state.isAuthenticated,
+            }),
+            // Re-derive isAuthenticated from token in case the stored value
+            // is ever out of sync (e.g. manual localStorage edits).
+            onRehydrateStorage: () => (state) => {
+                if (state) {
+                    state.isAuthenticated = !!state.token
+                }
+            },
         }
     )
 )

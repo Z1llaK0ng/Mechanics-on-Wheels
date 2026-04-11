@@ -15,6 +15,8 @@ COL_JOB_CARDS     = "job_cards"
 COL_ACTIVE_SUBS   = "active_subs"
 COL_SUBSCRIPTIONS = "subscriptions"
 COL_VEHICLE_OWNERS = "vehicle_owners"
+COL_MODULE_GROUPS = "module_groups"
+COL_GLOBAL_DB     = "global_db"
 
 DB_ID = settings.APPWRITE_DB_ID
 

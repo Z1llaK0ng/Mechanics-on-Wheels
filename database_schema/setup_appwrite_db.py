@@ -214,6 +214,8 @@ def setup():
     attr_str ("mechanics", "hashed_password", size=255, required=True)
     attr_str ("mechanics", "shop_id",         size=36,  required=True)   # → shop.$id
     attr_bool("mechanics", "active_status",   required=True, default=True)
+    attr_str ("mechanics", "staffrole",       size=50,  required=False, default="technician")   # 'technician' | 'staff'
+    attr_str ("mechanics", "permitted_modules", size=1000, required=False, xarray=True)
     index("mechanics", "idx_mechanic_email_unique", "unique", ["email"])
 
     # ── 5. VEHICLE_OWNERS ───────────────────────────────────────────────────
@@ -247,6 +249,18 @@ def setup():
                   required=True, default="pending")
     attr_datetime("job_cards", "created_at", required=True)
     attr_datetime("job_cards", "updated_at", required=False)
+
+    # ── 8. MODULE_GROUPS ────────────────────────────────────────────────────
+    print("\n[8/8] module_groups")
+    col("module_groups", "module_groups")
+    attr_str("module_groups", "name", size=100, required=True)
+    attr_str("module_groups", "desc", size=1000, required=False)
+    attr_str("module_groups", "icon", size=20, required=False)
+    attr_str("module_groups", "module_ids", size=1000, required=True, xarray=True)
+    attr_int("module_groups", "price_monthly", required=True)
+    attr_int("module_groups", "price_yearly", required=True)
+    attr_str("module_groups", "shop_id", size=100, required=True)
+    index("module_groups", "idx_shop_id", "key", ["shop_id"])
 
     print("\n\n✅ All done! Open your Appwrite Console to verify the collections.")
     print("   ⚠️  Remember to set collection permissions in the Appwrite Console.")
