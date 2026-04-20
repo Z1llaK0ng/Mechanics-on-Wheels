@@ -31,7 +31,13 @@ export default function MechanicModulesPage() {
                         <button
                             key={mod.id}
                             className="mechanic-module-tile"
-                            onClick={() => navigate(MODULE_ROUTES[mod.id] ?? '/')}
+                            onClick={() => {
+                                console.log(`[DEBUG] Tile clicked: ${mod.id}`);
+                                console.log(`[DEBUG] Route matched: ${MODULE_ROUTES[mod.id]}`);
+                                const route = MODULE_ROUTES[mod.id] ?? '/';
+                                console.log(`[DEBUG] Final route: ${route}`);
+                                navigate(route);
+                            }}
                         >
                             <span className="mechanic-module-tile-icon">{mod.icon}</span>
                             <span className="mechanic-module-tile-name">{mod.name}</span>

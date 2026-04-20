@@ -1,4 +1,4 @@
-# IDE Configuration - Fixing Import Errors
+﻿# IDE Configuration - Fixing Import Errors
 
 ## The Problem
 
@@ -29,10 +29,10 @@ Could not find import of `fastapi`, `sqlalchemy`, `pydantic`, etc.
 1. **Open Settings**: `File` → `Settings` (or `Ctrl + Alt + S`)
 
 2. **Python Interpreter**:
-   - Navigate to: `Project: Mechanics-on-Wheels` → `Python Interpreter`
+   - Navigate to: `Project: CarrySpanner` → `Python Interpreter`
    - Click the gear icon ⚙️
    - Select `Add Interpreter` → `Existing`
-   - Browse to: `c:\Users\USER\OneDrive - Ashesi University\Desktop\Ashesi stuff\E-Commerce\Mechanics-on-Wheels\venv\Scripts\python.exe`
+   - Browse to: `c:\Users\USER\OneDrive - Ashesi University\Desktop\Ashesi stuff\E-Commerce\CarrySpanner\venv\Scripts\python.exe`
 
 3. **Apply and OK**
 

@@ -20,7 +20,7 @@ export default function ShopLoginPage() {
         } else {
             // Mechanic scope — branch on staffrole
             navigate(
-                user.staffrole === 'staff' ? '/shop/management' : '/modules',
+                user.staffrole === 'staff' ? '/shop/management' : '/shop/modules',
                 { replace: true }
             )
         }
@@ -54,7 +54,7 @@ export default function ShopLoginPage() {
                 <div className="login-logo">
                     <div className="login-logo-icon">🏪</div>
                     <h1>Shop Portal</h1>
-                    <p>Mechanics on Wheels — Shop Management</p>
+                    <p>CarrySpanner — Shop Management</p>
                 </div>
 
                 {justRegistered && (
@@ -130,7 +130,7 @@ export default function ShopLoginPage() {
                 <div style={{ textAlign: 'center', marginTop: 20 }}>
                     {role === 'admin' ? (
                         <p className="text-sm text-muted">
-                            New to Mechanics on Wheels?{' '}
+                            New to CarrySpanner?{' '}
                             <Link to="/shop/register" style={{ color: 'var(--accent-light)' }}>
                                 Register your shop
                             </Link>

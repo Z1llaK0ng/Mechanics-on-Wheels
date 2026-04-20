@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+﻿import { useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useModulesCatalogue } from '../hooks/useShopAuth'
 
@@ -87,7 +87,7 @@ export default function LandingPage() {
                         <span className="landing-hero-gradient">Smarter &amp; Faster</span>
                     </h1>
                     <p className="landing-hero-subtitle">
-                        Mechanics on Wheels is a modular ERP platform designed for automotive repair shops.
+                        CarrySpanner is a modular ERP platform designed for automotive repair shops.
                         Pick only the tools your team needs — job cards, invoicing, inventory and more.
                     </p>
                     <div className="landing-hero-cta">

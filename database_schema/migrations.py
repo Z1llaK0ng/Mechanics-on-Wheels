@@ -1,5 +1,5 @@
 """
-Mechanics-on-Wheels — Appwrite Migrations & Seeding
+CarrySpanner — Appwrite Migrations & Seeding
 =====================================================
 All schema migrations and data-seeding tasks in one place.
 Each migration is a self-contained function that can be run individually.
@@ -12,8 +12,11 @@ Usage — run a specific migration:
     python migrations.py add_staffrole
 
 Available commands:
-    seed_subscriptions   Add 'price'/'desc' attributes + seed subscription docs
-    add_staffrole        Add 'staffrole' attribute to mechanics + backfill docs
+    seed_subscriptions        Add 'price'/'desc' attributes + seed subscription docs
+    add_staffrole             Add 'staffrole' attribute to mechanics + backfill docs
+    add_shop_id_to_job_cards  Add 'shop_id' string attribute to job_cards collection
+    add_is_global_to_job_cards  Add 'is_global' boolean + backfill to job-cards collection
+    create_global_db          Create global_db collection with attributes and indexes
 
 Requires a .env file in the same directory with:
     APPWRITE_ENDPOINT
@@ -142,8 +145,20 @@ MODULES = [
     {
         "id":   "global-db",
         "name": "Global Database",
-        "desc": "Allow your workshop's job cards and vehicle registry to be seen by other shops on the Mechanics-on-Wheels network.",
+        "desc": "Allow your workshop's job cards and vehicle registry to be seen by other shops on the CarrySpanner network.",
         "price": {"monthly": 34, "yearly": 340},
+    },
+    {
+        "id":   "search",
+        "name": "Search Module",
+        "desc": "Advanced search capabilities across all modules for quick retrieval of vehicles, customers, and job cards.",
+        "price": {"monthly": 15, "yearly": 150},
+    },
+    {
+        "id":   "shop-map",
+        "name": "Shop Map",
+        "desc": "Interactive geographical map to visualize shop locations and customer distribution.",
+        "price": {"monthly": 20, "yearly": 200},
     },
 ]
 
@@ -447,22 +462,220 @@ def add_vehicle_owner_shop_id():
 
 
 # ════════════════════════════════════════════════════════════════════════════
+# MIGRATION 7 — Create shop_customers junction table
+# ════════════════════════════════════════════════════════════════════════════
+
+def create_shop_customers():
+    """
+    Migration 7: Create the shop_customers junction collection.
+
+    This replaces the shop_id field on vehicle_owners with a many-to-many
+    link table so one customer can be associated with multiple shops.
+
+    Schema:
+        customer_id  — string(36)  Appwrite $id of a vehicle_owners document
+        shop_id      — string(36)  Appwrite $id of a shop document
+
+    A unique composite index on (customer_id, shop_id) prevents duplicates.
+    """
+    print("\n━━━ [7] create_shop_customers ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+    COL = "shop_customers"
+
+    # Step 1 — collection
+    try:
+        db.create_collection(
+            database_id=DB_ID,
+            collection_id=COL,
+            name="shop_customers",
+            document_security=False,
+        )
+        print(f"  📁 Collection '{COL}' created.")
+    except Exception as e:
+        if "already exists" in str(e).lower() or "409" in str(e):
+            print(f"  ℹ️  Collection '{COL}' already exists — skipping.")
+        else:
+            raise
+    time.sleep(0.5)
+
+    # Step 2 — attributes
+    print("  Adding attributes…")
+    _str_attr(COL, "customer_id", size=36, required=True)
+    _str_attr(COL, "shop_id",     size=36, required=True)
+
+    print("  ⏳ Waiting 5 s for attributes to become active…")
+    time.sleep(5)
+
+    # Step 3 — unique composite index
+    print("  Creating unique index on (shop_id, customer_id)…")
+    try:
+        db.create_index(
+            database_id=DB_ID,
+            collection_id=COL,
+            key="idx_shop_customer_unique",
+            type="unique",
+            attributes=["shop_id", "customer_id"],
+        )
+        print("  ✅ Index created.")
+    except Exception as e:
+        if "already exists" in str(e).lower() or "409" in str(e):
+            print("  ℹ️  Index already exists — skipped.")
+        else:
+            print(f"  ⚠️  Index error: {e}")
+
+    print("  ✅ create_shop_customers done.")
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# MIGRATION 8 — Add shop_id to job_cards
+# ════════════════════════════════════════════════════════════════════════════
+
+def add_shop_id_to_job_cards():
+    """
+    Migration 8: Add optional 'shop_id' string attribute (size 255, default '')
+    to the job_cards collection so newly created job cards persist their shop.
+    Existing documents will have shop_id='' until a new card is created.
+    """
+    print("\n━━━ [8] add_shop_id_to_job_cards ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+    COL = "job_cards"
+
+    print("  Adding attribute…")
+    _str_attr(COL, "shop_id", size=255, required=False, default="")
+
+    print("  ⏳ Waiting 3 s for attribute to become active…")
+    time.sleep(3)
+    print("  ✅ add_shop_id_to_job_cards done.")
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# MIGRATION 9 — Add is_global to job-cards + backfill
+# ════════════════════════════════════════════════════════════════════════════
+
+def add_is_global_to_job_cards():
+    """
+    Migration 9: Add 'is_global' boolean attribute (default False) to the
+    job-cards collection and backfill existing documents.
+    Cards that already had a non-empty shop_id are considered globally shared
+    and will be backfilled with is_global=True.
+    """
+    print("\n━━━ [9] add_is_global_to_job_cards ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+    COL = "job-cards"
+
+    print("  Adding attribute…")
+    _bool_attr(COL, "is_global", required=False, default=False)
+
+    print("  ⏳ Waiting 3 s for attribute to become active…")
+    time.sleep(3)
+
+    print("  Backfilling existing job cards…")
+    offset = 0
+    limit  = 100
+    filled = 0
+
+    while True:
+        result = db.list_documents(DB_ID, COL, queries=[Query.limit(limit), Query.offset(offset)])
+        docs = result["documents"]
+        if not docs:
+            break
+        for doc in docs:
+            if doc.get("is_global") is None:
+                is_global = bool(doc.get("shop_id"))
+                db.update_document(DB_ID, COL, doc["$id"], {"is_global": is_global})
+                filled += 1
+            time.sleep(0.1)
+        offset += len(docs)
+        if len(docs) < limit:
+            break
+
+    print(f"\n  ✅ add_is_global_to_job_cards done — {filled} backfilled.")
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# MIGRATION 10 — Create global_db collection
+# ════════════════════════════════════════════════════════════════════════════
+
+def create_global_db():
+    """
+    Migration 10: Create the global_db collection with all required attributes
+    and search/lookup indexes for cross-shop vehicle record sharing.
+
+    Schema:
+        job_card_id      — string(36), required, unique
+        vehicle_vin      — string(17), optional
+        vehicle_registry — string(20), optional
+        shop_id          — string(36), optional
+    """
+    print("\n━━━ [10] create_global_db ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+    COL = "global_db"
+
+    # Step 1 — collection
+    try:
+        db.create_collection(
+            database_id=DB_ID,
+            collection_id=COL,
+            name="Global Database",
+            document_security=False,
+        )
+        print(f"  📁 Collection '{COL}' created.")
+    except Exception as e:
+        if "already exists" in str(e).lower() or "409" in str(e):
+            print(f"  ℹ️  Collection '{COL}' already exists — skipping.")
+        else:
+            raise
+    time.sleep(1)
+
+    # Step 2 — attributes
+    print("  Adding attributes…")
+    _str_attr(COL, "job_card_id",      size=36,  required=True)
+    _str_attr(COL, "vehicle_vin",      size=17,  required=False)
+    _str_attr(COL, "vehicle_registry", size=20,  required=False)
+    _str_attr(COL, "shop_id",          size=36,  required=False)
+
+    print("  ⏳ Waiting 5 s for attributes to become active…")
+    time.sleep(5)
+
+    # Step 3 — indexes
+    print("  Creating indexes…")
+    INDEXES = [
+        ("idx_job_card_id",       "unique",   ["job_card_id"]),
+        ("idx_vehicle_vin",       "key",      ["vehicle_vin"]),
+        ("idx_vehicle_registry",  "key",      ["vehicle_registry"]),
+        ("idx_vin_search",        "fulltext", ["vehicle_vin"]),
+        ("idx_registry_search",   "fulltext", ["vehicle_registry"]),
+    ]
+    for idx_id, idx_type, attrs in INDEXES:
+        try:
+            db.create_index(DB_ID, COL, idx_id, idx_type, attrs)
+            print(f"  ✅ Index '{idx_id}' created.")
+        except Exception as e:
+            if "already exists" in str(e).lower() or "409" in str(e):
+                print(f"  ℹ️  Index '{idx_id}' already exists — skipped.")
+            else:
+                print(f"  ⚠️  Index error for '{idx_id}': {e}")
+        time.sleep(0.3)
+
+    print("  ✅ create_global_db done.")
+
+
+# ════════════════════════════════════════════════════════════════════════════
 # Entry point
 # ════════════════════════════════════════════════════════════════════════════
 
 MIGRATIONS = {
-    "seed_subscriptions":          seed_subscriptions,
-    "add_staffrole":               add_staffrole,
-    "seed_module_groups":          seed_module_groups,
-    "add_shop_id":                 add_shop_id,
-    "add_job_cards_status":        add_job_cards_status,
-    "add_can_push_global_db":      add_can_push_global_db,
-    "add_vehicle_owner_shop_id":   add_vehicle_owner_shop_id,
-    "create_shop_customers":       create_shop_customers,
+    "seed_subscriptions":           seed_subscriptions,
+    "add_staffrole":                add_staffrole,
+    "seed_module_groups":           seed_module_groups,
+    "add_shop_id":                  add_shop_id,
+    "add_job_cards_status":         add_job_cards_status,
+    "add_can_push_global_db":       add_can_push_global_db,
+    "add_vehicle_owner_shop_id":    add_vehicle_owner_shop_id,
+    "create_shop_customers":        create_shop_customers,
+    "add_shop_id_to_job_cards":     add_shop_id_to_job_cards,
+    "add_is_global_to_job_cards":   add_is_global_to_job_cards,
+    "create_global_db":             create_global_db,
 }
 
 if __name__ == "__main__":
-    print(f"🔧 Mechanics-on-Wheels — Appwrite Migrations")
+    print(f"🔧 CarrySpanner — Appwrite Migrations")
     print(f"   Endpoint  : {ENDPOINT}")
     print(f"   Project ID: {PROJECT_ID}")
     print(f"   Database  : {DB_ID}")

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+﻿import { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { useShopRegister } from '../../hooks/useShopAuth'
 
@@ -38,7 +38,7 @@ export default function ShopRegisterPage() {
                 <div className="login-logo">
                     <div className="login-logo-icon">🏪</div>
                     <h1>Register Your Shop</h1>
-                    <p>Create a Mechanics on Wheels account</p>
+                    <p>Create a CarrySpanner account</p>
                 </div>
 
                 {error && <div className="login-error" style={{ marginBottom: 16 }}>{error}</div>}

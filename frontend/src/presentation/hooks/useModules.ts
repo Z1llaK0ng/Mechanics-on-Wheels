@@ -53,6 +53,16 @@ const MODULE_META: Record<string, { shortName: string; icon: string; features: {
             { label: 'Work & parts history', icon: '📋' },
             { label: 'Network-wide search', icon: '🔗' }
         ]
+    },
+    'Customer Relationships': {
+        shortName: 'CRM',
+        icon: '👥',
+        routeKey: 'crm',
+        features: [
+            { label: 'Customer management', icon: '👤' },
+            { label: 'Vehicle assignment', icon: '🚗' },
+            { label: 'Job card notifications', icon: '📋' }
+        ]
     }
 }
 

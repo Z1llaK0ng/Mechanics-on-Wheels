@@ -1,4 +1,4 @@
-# Project File Structure – Mechanics on Wheels
+﻿# Project File Structure – CarrySpanner
 
 > Excludes: `node_modules/`, `venv/`, `.git/`, `__pycache__/`, `.vscode/`
 
@@ -82,7 +82,7 @@ flowchart TD
 ### 📂 Full File Tree
 
 ```
-Mechanics-on-Wheels/
+CarrySpanner/
 │
 ├── database_schema/                        # DB setup, seeding & SQL schemas
 │   ├── setup_appwrite_db.py                # Creates Appwrite collections & attributes
@@ -195,7 +195,7 @@ Mechanics-on-Wheels/
 Files that describe, plan, or document the project — not executed at runtime.
 
 ```
-Mechanics-on-Wheels/
+CarrySpanner/
 │
 ├── README.md                               # Top-level project overview
 │
@@ -222,7 +222,7 @@ Mechanics-on-Wheels/
 The original Python prototype built before the current web architecture was chosen.
 
 ```
-Mechanics-on-Wheels/
+CarrySpanner/
 │
 └── Python wireframe/
     ├── wireframe.py                        # Initial UI / flow prototype

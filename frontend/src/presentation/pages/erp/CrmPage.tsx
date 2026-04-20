@@ -45,10 +45,11 @@ export default function CrmPage() {
     const [drawerCustomer, setDrawerCustomer] = useState<VehicleOwner | null>(null)
 
     // Modals
-    const [showAddCustomer,  setShowAddCustomer]  = useState(false)
-    const [showAddVehicle,   setShowAddVehicle]   = useState(false)
-    const [assignTarget,     setAssignTarget]      = useState<Vehicle | null>(null)
-    const [notifyTarget,     setNotifyTarget]      = useState<{ customer: VehicleOwner; jobCard: JobCard } | null>(null)
+    const [showAddCustomer,   setShowAddCustomer]   = useState(false)
+    const [showLinkCustomer,  setShowLinkCustomer]  = useState(false)
+    const [showAddVehicle,    setShowAddVehicle]    = useState(false)
+    const [assignTarget,      setAssignTarget]       = useState<Vehicle | null>(null)
+    const [notifyTarget,      setNotifyTarget]       = useState<{ customer: VehicleOwner; jobCard: JobCard } | null>(null)
 
     return (
         <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', height: '100%', gap: 0 }}>
@@ -67,9 +68,14 @@ export default function CrmPage() {
 
                     <div style={{ display: 'flex', gap: 10 }}>
                         {activeTab === 'customers' && (
-                            <button className="btn btn-primary" id="crm-add-customer-btn" onClick={() => setShowAddCustomer(true)}>
-                                + New Customer
-                            </button>
+                            <>
+                                <button className="btn btn-secondary" id="crm-link-customer-btn" onClick={() => setShowLinkCustomer(true)}>
+                                    🔗 Link Existing
+                                </button>
+                                <button className="btn btn-primary" id="crm-add-customer-btn" onClick={() => setShowAddCustomer(true)}>
+                                    + New Customer
+                                </button>
+                            </>
                         )}
                         {activeTab === 'vehicles' && (
                             <button className="btn btn-primary" id="crm-add-vehicle-btn" onClick={() => setShowAddVehicle(true)}>
@@ -140,14 +146,16 @@ export default function CrmPage() {
                     <JobCardsTab
                         search={search}
                         onNotify={(c, jc) => setNotifyTarget({ customer: c, jobCard: jc })}
+                        onAssignOwner={v => setAssignTarget(v)}
                     />
                 )}
             </div>
 
             {/* ── Modals ── */}
-            {showAddCustomer && <AddCustomerModal onClose={() => setShowAddCustomer(false)} />}
-            {showAddVehicle  && <AddVehicleModal  onClose={() => setShowAddVehicle(false)} />}
-            {assignTarget    && <AssignOwnerModal vehicle={assignTarget} onClose={() => setAssignTarget(null)} />}
+            {showAddCustomer  && <AddCustomerModal  onClose={() => setShowAddCustomer(false)} />}
+            {showLinkCustomer && <LinkCustomerModal onClose={() => setShowLinkCustomer(false)} />}
+            {showAddVehicle   && <AddVehicleModal   onClose={() => setShowAddVehicle(false)} />}
+            {assignTarget     && <AssignOwnerModal vehicle={assignTarget} onClose={() => setAssignTarget(null)} />}
             {notifyTarget    && (
                 <NotifyModal
                     customer={notifyTarget.customer}
@@ -358,9 +366,11 @@ function VehiclesTab({
 function JobCardsTab({
     search,
     onNotify,
+    onAssignOwner,
 }: {
     search: string
     onNotify: (c: VehicleOwner, jc: JobCard) => void
+    onAssignOwner: (v: Vehicle) => void
 }) {
     const { data: customers = [] } = useQuery<VehicleOwner[]>({
         queryKey: ['crm', 'customers'],
@@ -383,7 +393,7 @@ function JobCardsTab({
 
     const { data: jobCards = [], isLoading } = useQuery<JobCard[]>({
         queryKey: ['crm', 'job-cards'],
-        queryFn: () => shopApiClient.get<JobCard[]>('/job-cards?limit=200').then(r => r.data),
+        queryFn: () => shopApiClient.get<JobCard[]>('/job-cards?limit=100').then(r => r.data),
     })
 
     const filtered = jobCards.filter(j =>
@@ -443,10 +453,21 @@ function JobCardsTab({
                                         >
                                             🔔 Notify
                                         </button>
-                                    ) : j.status === 'completed' ? (
-                                        <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>No owner</span>
-                                    ) : (
+                                    ) : owner ? (
                                         <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Not ready</span>
+                                    ) : (
+                                        <button
+                                            className="btn btn-secondary btn-sm"
+                                            onClick={() => onAssignOwner({
+                                                registry: j.vehicle_registry,
+                                                vin: j.vehicle_vin,
+                                                company: '',
+                                                brand: '',
+                                                active_status: true,
+                                            })}
+                                        >
+                                            👤 Assign Customer
+                                        </button>
                                     )}
                                 </td>
                             </tr>
@@ -682,6 +703,106 @@ function AddCustomerModal({ onClose }: { onClose: () => void }) {
                 isPending={mutation.isPending}
                 disabled={!form.name}
             />
+        </ModalShell>
+    )
+}
+
+function LinkCustomerModal({ onClose }: { onClose: () => void }) {
+    const qc = useQueryClient()
+    const [query, setQuery] = useState('')
+    const [linked, setLinked] = useState<Set<string>>(new Set())
+    const [error, setError] = useState<string | null>(null)
+
+    const { data: results = [], isFetching } = useQuery<VehicleOwner[]>({
+        queryKey: ['crm', 'global-search', query],
+        queryFn: () => {
+            if (query.length < 2) return Promise.resolve([])
+            return shopApiClient
+                .get<VehicleOwner[]>(`/crm/customers/search-global?q=${encodeURIComponent(query)}`)
+                .then(r => r.data)
+        },
+        enabled: query.length >= 2,
+    })
+
+    const linkMutation = useMutation({
+        mutationFn: (customerId: string) =>
+            shopApiClient.post(`/crm/customers/link?customer_id=${customerId}`).then(r => r.data),
+        onSuccess: (_data, customerId) => {
+            setLinked(prev => new Set(prev).add(customerId))
+            qc.invalidateQueries({ queryKey: ['crm', 'customers'] })
+            setError(null)
+        },
+        onError: (e: any) => setError(e?.response?.data?.detail ?? 'Failed to link customer.'),
+    })
+
+    return (
+        <ModalShell title="🔗 Link Existing Customer" onClose={onClose}>
+            <div style={{ padding: '0 24px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+                <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
+                    Search the network for an existing customer profile and link them to your shop.
+                </p>
+
+                <div className="form-group">
+                    <label className="form-label">Search by name</label>
+                    <input
+                        id="crm-link-search"
+                        className="form-input"
+                        placeholder="Type at least 2 characters…"
+                        value={query}
+                        autoFocus
+                        onChange={e => setQuery(e.target.value)}
+                    />
+                </div>
+
+                {isFetching && <LoadingState label="Searching…" />}
+
+                {!isFetching && results.length === 0 && query.length >= 2 && (
+                    <div style={{ fontSize: 13, color: 'var(--text-secondary)', textAlign: 'center', padding: '10px 0' }}>
+                        No customers found for "{query}".
+                    </div>
+                )}
+
+                {results.length > 0 && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 280, overflowY: 'auto' }}>
+                        {results.map(c => (
+                            <div key={c.id} style={{
+                                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                                padding: '10px 14px', background: 'var(--bg-tertiary)',
+                                borderRadius: 8, border: '1px solid var(--border-subtle)',
+                            }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                    <div className="avatar" style={{ width: 30, height: 30, fontSize: 11, background: 'var(--accent-dim)', color: 'var(--accent-light)', flexShrink: 0 }}>
+                                        {c.name.slice(0, 2).toUpperCase()}
+                                    </div>
+                                    <div>
+                                        <div style={{ fontWeight: 600, fontSize: 13 }}>{c.name}</div>
+                                        <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
+                                            {c.phone && `📞 ${c.phone}`}{c.phone && c.email && '  '}{c.email && `✉ ${c.email}`}
+                                        </div>
+                                    </div>
+                                </div>
+                                {linked.has(c.id) ? (
+                                    <span className="badge badge-success">✓ Linked</span>
+                                ) : (
+                                    <button
+                                        className="btn btn-primary btn-sm"
+                                        disabled={linkMutation.isPending}
+                                        onClick={() => linkMutation.mutate(c.id)}
+                                    >
+                                        Link
+                                    </button>
+                                )}
+                            </div>
+                        ))}
+                    </div>
+                )}
+
+                {error && <ErrorBanner msg={error} />}
+            </div>
+
+            <div style={{ padding: '16px 24px', borderTop: '1px solid var(--border-subtle)', display: 'flex', justifyContent: 'flex-end' }}>
+                <button className="btn btn-secondary" onClick={onClose}>Done</button>
+            </div>
         </ModalShell>
     )
 }

@@ -1,4 +1,4 @@
-import { useNavigate } from 'react-router-dom'
+﻿import { useNavigate } from 'react-router-dom'
 import { useModules } from '../../hooks/useModules'
 import { usePWAInstall } from '../../hooks/usePWAInstall'
 import type { AppModule } from '../../../domain/types'
@@ -22,7 +22,7 @@ export default function PWADownloadPage() {
                 }}>
                     <div className="install-prompt-text">
                         <h2>✅ App Installed!</h2>
-                        <p>Mechanics on Wheels is installed on this device. Open it from your home screen or app drawer.</p>
+                        <p>CarrySpanner is installed on this device. Open it from your home screen or app drawer.</p>
                     </div>
                     <button className="btn btn-secondary" style={{ flexShrink: 0 }} onClick={() => navigate('/dashboard')}>
                         Go to Dashboard

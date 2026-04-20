@@ -1,4 +1,4 @@
-{
+﻿{
   "include": [
     "app"
   ],
@@ -22,7 +22,7 @@
       "pythonVersion": "3.11"
     }
   ],
-  "venvPath": "C:/Users/USER/OneDrive - Ashesi University/Desktop/Ashesi stuff/E-Commerce/Mechanics-on-Wheels/backend",
+  "venvPath": "C:/Users/USER/OneDrive - Ashesi University/Desktop/Ashesi stuff/E-Commerce/CarrySpanner/backend",
   "venv": "venv",
-  "pythonPath": "C:/Users/USER/OneDrive - Ashesi University/Desktop/Ashesi stuff/E-Commerce/Mechanics-on-Wheels/backend/venv/Scripts/python.exe"
+  "pythonPath": "C:/Users/USER/OneDrive - Ashesi University/Desktop/Ashesi stuff/E-Commerce/CarrySpanner/backend/venv/Scripts/python.exe"
 }

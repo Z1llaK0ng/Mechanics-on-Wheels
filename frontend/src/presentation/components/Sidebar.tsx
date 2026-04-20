@@ -1,4 +1,4 @@
-import { useState } from 'react'
+﻿import { useState } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../../infrastructure/store/authStore'
 import { useModules } from '../hooks/useModules'
@@ -29,7 +29,7 @@ export default function Sidebar() {
                 {!collapsed && (
                     <div className="sidebar-logo-text">
                         {mechanic?.shop_name || 'MechERP'}
-                        <span>Mechanics on Wheels</span>
+                        <span>CarrySpanner</span>
                     </div>
                 )}
                 <button

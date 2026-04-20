@@ -1,13 +1,13 @@
--- ============================================================
--- Mechanics-on-Wheels — Global Database Schema
+﻿-- ============================================================
+-- CarrySpanner — Global Database Schema
 -- MySQL 8.0+
 -- ============================================================
 
-CREATE DATABASE IF NOT EXISTS mechanics_on_wheels
+CREATE DATABASE IF NOT EXISTS carryspanner
     CHARACTER SET utf8mb4
     COLLATE utf8mb4_unicode_ci;
 
-USE mechanics_on_wheels;
+USE carryspanner;
 
 -- ============================================================
 -- 1. SHOP  (independent — no foreign keys)

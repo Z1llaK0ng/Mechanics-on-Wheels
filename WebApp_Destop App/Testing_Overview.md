@@ -1,4 +1,4 @@
-# Mechanics-on-Wheels: Testing Overview
+﻿# CarrySpanner: Testing Overview
 
 Based on the project's file structure, existing documentation, and conversation history, several different layers of testing were conducted during the build process. Here is a summary of the testing approaches and specific tests that were carried out:
 
@@ -9,7 +9,7 @@ Several ad-hoc Python testing scripts were created to test our integrations with
 * **Database Operations & Schema patching (`test_create_mechanic.py`, `test_patch_schema.py`, `test_attrs.py`)**: Several scripts were repeatedly run to automate schema validation and verify whether we could successfully read, write, update, and patch schema attributes programmatically through the Appwrite Python SDK.
 
 ## 2. Manual Testing & Role Authorization
-Since Mechanics-on-Wheels uses specialized Role-Based Access Control (RBAC) (Admins, Mechanics, Staff), manual testing was heavily used during the frontend GUI build. 
+Since CarrySpanner uses specialized Role-Based Access Control (RBAC) (Admins, Mechanics, Staff), manual testing was heavily used during the frontend GUI build. 
 
 A dedicated `Test_logins.md` file was created and maintained. It holds standardized credentials targeting specific user capabilities so developers could easily boot up the UI and test permissions:
 * **Shop Owner/Admin Testing:** `admin@chem1c.com`

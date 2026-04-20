@@ -6,6 +6,7 @@ import ModulesPage from './presentation/pages/erp/ModulesPage'
 import JobCardsPage from './presentation/pages/erp/JobCardsPage'
 import VehiclesPage from './presentation/pages/erp/VehiclesPage'
 import GlobalDbPage from './presentation/pages/erp/GlobalDbPage'
+import CrmPage from './presentation/pages/erp/CrmPage'
 import AppLayout from './presentation/components/AppLayout'
 import LandingPage from './presentation/pages/LandingPage'
 
@@ -87,6 +88,7 @@ export default function AppRouter() {
                         <Route path="/job-cards" element={<JobCardsPage />} />
                         <Route path="/vehicles" element={<VehiclesPage />} />
                         <Route path="/global-db" element={<GlobalDbPage />} />
+                        <Route path="/crm" element={<CrmPage />} />
                     </Route>
                 </Route>
 

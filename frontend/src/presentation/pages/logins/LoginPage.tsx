@@ -1,4 +1,4 @@
-import { useState } from 'react'
+﻿import { useState } from 'react'
 import { useAuth } from '../../hooks/useAuth'
 
 export default function LoginPage() {
@@ -17,7 +17,7 @@ export default function LoginPage() {
                 {/* Logo */}
                 <div className="login-logo">
                     <div className="login-logo-icon">🔧</div>
-                    <h1>Mechanics on Wheels</h1>
+                    <h1>CarrySpanner</h1>
                     <p>Sign in to your workshop dashboard</p>
                 </div>
 

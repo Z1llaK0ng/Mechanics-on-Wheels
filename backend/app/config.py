@@ -1,4 +1,4 @@
-from pydantic_settings import BaseSettings
+﻿from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
@@ -13,7 +13,7 @@ class Settings(BaseSettings):
     APPWRITE_DB_ID: str = "699e2b3b00170fd7efb1"
 
     # JWT Security
-    SECRET_KEY: str = "mechanics-on-wheels-secret-key-change-in-production"
+    SECRET_KEY: str = "CarrySpanner-secret-key-change-in-production"
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
 

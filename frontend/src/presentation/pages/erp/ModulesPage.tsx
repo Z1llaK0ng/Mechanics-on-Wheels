@@ -1,4 +1,4 @@
-import { useState } from 'react'
+﻿import { useState } from 'react'
 import { useModules } from '../../hooks/useModules'
 import { usePWAInstall } from '../../hooks/usePWAInstall'
 import type { AppModule } from '../../../domain/types'
@@ -59,7 +59,7 @@ export default function ModulesPage() {
                                 <div style={{ textAlign: 'center' }}>
                                     <div style={{ fontSize: 48, marginBottom: 12 }}>✅</div>
                                     <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 8 }}>App Already Installed</h3>
-                                    <p style={{ color: 'var(--text-secondary)' }}>You can open "Mechanics on Wheels" from your home screen or app drawer.</p>
+                                    <p style={{ color: 'var(--text-secondary)' }}>You can open "CarrySpanner" from your home screen or app drawer.</p>
                                 </div>
                             ) : canInstall ? (
                                 <div style={{ textAlign: 'center' }}>

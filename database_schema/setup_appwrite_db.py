@@ -1,5 +1,5 @@
-"""
-Mechanics-on-Wheels — Appwrite Database Setup Script
+﻿"""
+CarrySpanner — Appwrite Database Setup Script
 =====================================================
 Creates the full database schema on Appwrite Cloud.
 

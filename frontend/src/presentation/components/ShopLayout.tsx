@@ -11,6 +11,8 @@ const FallbackModuleNames: Record<string, {name: string, icon: string}> = {
     'invoicing': { name: 'Invoicing', icon: '🧾' },
     'employees': { name: 'Employees', icon: '👨‍🔧' },
     'global-db': { name: 'Global DB', icon: '🌐' },
+    'search': { name: 'Search', icon: '🔍' },
+    'shop-map': { name: 'Shop Map', icon: '🗺️' }
 }
 
 export default function ShopLayout() {
@@ -63,7 +65,7 @@ export default function ShopLayout() {
                     {(!isTechnician || !collapsed) ? (
                         <div className="sidebar-logo-text">
                             {isAdmin ? 'Shop Portal' : isStaff ? 'Staff Portal' : 'Mechanics Portal'}
-                            <span>{user?.shopName ?? 'Mechanics on Wheels'}</span>
+                            <span>{user?.shopName ?? 'CarrySpanner'}</span>
                         </div>
                     ) : null}
 

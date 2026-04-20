@@ -1,4 +1,4 @@
-# Mechanics-on-Wheels — Postman API Testing Guide
+﻿# CarrySpanner — Postman API Testing Guide
 
 > **Base URL:** `http://localhost:8000`  
 > **API Prefix:** `/api/v1`  
@@ -8,7 +8,7 @@
 
 ## ⚙️ Setup
 
-1. Open Postman and create a new **Collection** called `Mechanics-on-Wheels`.
+1. Open Postman and create a new **Collection** called `CarrySpanner`.
 2. Add a **Collection Variable** called `base_url` with value `http://localhost:8000/api/v1`.
 3. Add a **Collection Variable** called `token` (leave it empty — you'll fill it after login).
 4. Make sure the backend server is running (`uvicorn app.main:app --reload` from the `backend/` folder).

@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import shopApiClient from '../../infrastructure/api/shopClient'
+import { useAuthStore } from '../../infrastructure/store/authStore'
 
 export type ShopRole = 'admin' | 'mechanic'
 
@@ -166,6 +167,14 @@ const MODULE_META: Record<string, { icon: string; features: string[] }> = {
         icon: '🌐',
         features: ['Cross-shop job card visibility', 'DVLA & VIN car registry', 'Work & parts history', 'Network-wide search'],
     },
+    'search': {
+        icon: '🔍',
+        features: ['Advanced search capabilities', 'Cross-module search', 'Quick retrieval of vehicles & customers', 'Global and local queries'],
+    },
+    'shop-map': {
+        icon: '🗺️',
+        features: ['Interactive geographical map', 'Visualize shop locations', 'Customer distribution view', 'Route planning basics'],
+    },
 }
 
 export function useModulesCatalogue() {
@@ -200,7 +209,7 @@ export function useModulesCatalogue() {
             })
 
             // Sort them in the original presentation order
-            const order = ['job-cards', 'inventory', 'crm', 'invoicing', 'employees', 'global-db']
+            const order = ['job-cards', 'inventory', 'crm', 'invoicing', 'employees', 'global-db', 'search', 'shop-map']
             return Array.from(map.values()).sort((a, b) => {
                 const idxA = order.indexOf(a.id)
                 const idxB = order.indexOf(b.id)
@@ -221,15 +230,17 @@ export const MODULE_REQUIREMENTS: Record<string, string[]> = {
 
 // ── Module route mapping ──────────────────────────────────────────────────────
 export const MODULE_ROUTES: Record<string, string> = {
-    'job-cards': '/job-cards',
-    'vehicles': '/vehicles',
-    'inventory': '/modules',
-    'invoicing': '/modules',
-    'analytics': '/modules',
+    'job-cards': '/shop/m/job-cards',
+    'vehicles': '/shop/m/vehicles',
+    'inventory': '/shop/m/inventory',
+    'invoicing': '/shop/m/invoicing',
+    'analytics': '/shop/m/analytics',
     'pwa': '/download-pwa',
-    'crm': '/modules',
-    'employees': '/modules',
-    'global-db': '/modules',
+    'crm': '/shop/m/crm',
+    'employees': '/shop/m/employees',
+    'global-db': '/shop/m/global-db',
+    'search': '/shop/m/search',
+    'shop-map': '/shop/m/shop-map'
 }
 
 // ── Preset module groups ──────────────────────────────────────────────────────

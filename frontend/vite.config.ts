@@ -1,4 +1,4 @@
-import { defineConfig } from 'vite'
+﻿import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 import { fileURLToPath } from 'url'
@@ -13,7 +13,7 @@ export default defineConfig({
             registerType: 'autoUpdate',
             includeAssets: ['favicon.ico', 'icons/*.png'],
             manifest: {
-                name: 'Mechanics on Wheels',
+                name: 'CarrySpanner',
                 short_name: 'MechERP',
                 description: 'Offline-first ERP for automotive workshops',
                 theme_color: '#7c3aed',
