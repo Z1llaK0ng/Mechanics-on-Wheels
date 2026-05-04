@@ -14,9 +14,10 @@ Usage — run a specific migration:
 Available commands:
     seed_subscriptions        Add 'price'/'desc' attributes + seed subscription docs
     add_staffrole             Add 'staffrole' attribute to mechanics + backfill docs
-    add_shop_id_to_job_cards  Add 'shop_id' string attribute to job_cards collection
-    add_is_global_to_job_cards  Add 'is_global' boolean + backfill to job-cards collection
-    create_global_db          Create global_db collection with attributes and indexes
+    add_shop_id_to_job_cards       Add 'shop_id' string attribute to job_cards collection
+    add_is_global_to_job_cards     Add 'is_global' boolean + backfill to job-cards collection
+    create_global_db               Create global_db collection with attributes and indexes
+    backfill_job_cards_shop_id     Backfill shop_id on legacy job cards via mechanic mapping
 
 Requires a .env file in the same directory with:
     APPWRITE_ENDPOINT
@@ -657,21 +658,83 @@ def create_global_db():
 
 
 # ════════════════════════════════════════════════════════════════════════════
+# MIGRATION 11 — Backfill shop_id on legacy job cards
+# ════════════════════════════════════════════════════════════════════════════
+
+def backfill_job_cards_shop_id():
+    """
+    Migration 11: Backfill the 'shop_id' field on any job cards that were
+    created before the shop_id attribute existed.
+
+    Strategy: build a mechanic_id → shop_id map from the mechanics collection,
+    then for every job card missing a shop_id look up its upload_mechanic and
+    stamp the correct shop_id onto the document.
+    """
+    print("\n━━━ [11] backfill_job_cards_shop_id ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+    COL_JC  = "job_cards"
+    COL_MEC = "mechanics"
+
+    # Step 1 — build mechanic_id → shop_id map
+    print("  Building mechanic → shop_id map…")
+    mechanics_map: dict = {}
+    offset = 0
+    while True:
+        res = db.list_documents(DB_ID, COL_MEC, queries=[Query.limit(100), Query.offset(offset)])
+        for m in res["documents"]:
+            if m.get("shop_id"):
+                mechanics_map[m["$id"]] = m["shop_id"]
+        if len(res["documents"]) < 100:
+            break
+        offset += len(res["documents"])
+    print(f"  Found {len(mechanics_map)} mechanics with a shop_id.")
+
+    # Step 2 — patch job cards missing a shop_id
+    print("  Scanning job cards…")
+    offset  = 0
+    updated = 0
+    skipped = 0
+
+    while True:
+        res  = db.list_documents(DB_ID, COL_JC, queries=[Query.limit(100), Query.offset(offset)])
+        docs = res["documents"]
+        if not docs:
+            break
+        for jc in docs:
+            if not jc.get("shop_id"):
+                mechanic_id = jc.get("upload_mechanic")
+                if mechanic_id in mechanics_map:
+                    db.update_document(DB_ID, COL_JC, jc["$id"], {"shop_id": mechanics_map[mechanic_id]})
+                    print(f"    ✅ {jc['$id']} → shop {mechanics_map[mechanic_id]}")
+                    updated += 1
+                    time.sleep(0.05)
+                else:
+                    skipped += 1
+            else:
+                skipped += 1
+        offset += len(docs)
+        if len(docs) < 100:
+            break
+
+    print(f"\n  ✅ backfill_job_cards_shop_id done — {updated} updated, {skipped} skipped/already OK.")
+
+
+# ════════════════════════════════════════════════════════════════════════════
 # Entry point
 # ════════════════════════════════════════════════════════════════════════════
 
 MIGRATIONS = {
-    "seed_subscriptions":           seed_subscriptions,
-    "add_staffrole":                add_staffrole,
-    "seed_module_groups":           seed_module_groups,
-    "add_shop_id":                  add_shop_id,
-    "add_job_cards_status":         add_job_cards_status,
-    "add_can_push_global_db":       add_can_push_global_db,
-    "add_vehicle_owner_shop_id":    add_vehicle_owner_shop_id,
-    "create_shop_customers":        create_shop_customers,
-    "add_shop_id_to_job_cards":     add_shop_id_to_job_cards,
-    "add_is_global_to_job_cards":   add_is_global_to_job_cards,
-    "create_global_db":             create_global_db,
+    "seed_subscriptions":            seed_subscriptions,
+    "add_staffrole":                 add_staffrole,
+    "seed_module_groups":            seed_module_groups,
+    "add_shop_id":                   add_shop_id,
+    "add_job_cards_status":          add_job_cards_status,
+    "add_can_push_global_db":        add_can_push_global_db,
+    "add_vehicle_owner_shop_id":     add_vehicle_owner_shop_id,
+    "create_shop_customers":         create_shop_customers,
+    "add_shop_id_to_job_cards":      add_shop_id_to_job_cards,
+    "add_is_global_to_job_cards":    add_is_global_to_job_cards,
+    "create_global_db":              create_global_db,
+    "backfill_job_cards_shop_id":    backfill_job_cards_shop_id,
 }
 
 if __name__ == "__main__":

@@ -878,7 +878,7 @@ function AssignOwnerModal({ vehicle, onClose }: { vehicle: Vehicle; onClose: () 
     })
 
     const mutation = useMutation({
-        mutationFn: () => shopApiClient.patch(`/crm/vehicles/${vehicle.registry}/owner`, { owner_id: selectedId || null }).then(r => r.data),
+        mutationFn: () => shopApiClient.patch(`/crm/vehicles/${encodeURIComponent(vehicle.registry)}/owner`, { owner_id: selectedId || null }).then(r => r.data),
         onSuccess: () => { qc.invalidateQueries({ queryKey: ['crm', 'vehicles'] }); qc.invalidateQueries({ queryKey: ['crm', 'customers'] }); onClose() },
         onError: (e: any) => setError(e?.response?.data?.detail ?? 'Failed to assign owner.'),
     })

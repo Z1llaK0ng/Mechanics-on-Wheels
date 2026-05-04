@@ -55,8 +55,7 @@ export default function LandingPage() {
             <nav className="landing-nav">
                 <div className="landing-nav-inner">
                     <div className="landing-nav-logo">
-                        <span className="landing-nav-logo-icon">🔩</span>
-                        <span>Mechanics<strong>OnWheels</strong></span>
+                        <span><strong>CarrySpanner</strong></span>
                     </div>
                     <div className="landing-nav-links">
                         <button className={`landing-nav-link ${activeTab === 'overview' ? 'active' : ''}`} onClick={() => scrollTo({ current: document.querySelector('.landing-hero') as HTMLElement }, 'overview')}>Overview</button>
