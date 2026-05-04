@@ -26,7 +26,7 @@ export default function GlobalDbPage() {
             {/* Header */}
             <div className="page-header">
                 <h1>🌐 Global Database</h1>
-                <p>Search vehicle history across all shops — or push your job cards to the MoW network.</p>
+                <p>Search vehicle history across all shops — or push your job cards to the CarrySpanner network.</p>
             </div>
 
             {/* Feature stat cards */}
@@ -140,7 +140,7 @@ function SearchTab() {
                     autoFocus
                 />
                 <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 8 }}>
-                    All job cards in the MoW Global Database are shown below. Type to narrow results by VIN or plate number.
+                    All job cards in the CarrySpanner Global Database are shown below. Type to narrow results by VIN or plate number.
                 </p>
             </div>
 
@@ -684,7 +684,7 @@ const FEATURES = [
     { icon: '🔍', label: 'Cross-Shop Search',   desc: 'Find vehicle records from any shop on the network' },
     { icon: '🚗', label: 'VIN-Based History',   desc: 'Job history linked by VIN — not by plate' },
     { icon: '📤', label: 'Network Upload',       desc: 'Tag your job cards for cross-shop visibility' },
-    { icon: '🔗', label: 'Network-Wide',         desc: 'Data shared across all MoW partner shops' },
+    { icon: '🔗', label: 'Network-Wide',         desc: 'Data shared across all CarrySpanner partner shops' },
 ]
 
 const STATUS_MAP: Record<string, string> = {

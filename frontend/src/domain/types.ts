@@ -94,7 +94,6 @@ export interface VehicleOwner {
     name: string
     phone?: string
     email?: string
-    shop_id?: string
     vehicle_count: number
 }
 

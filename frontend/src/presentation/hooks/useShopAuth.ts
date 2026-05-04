@@ -75,8 +75,6 @@ async function shopLogin(payload: LoginPayload) {
     return data
 }
 
-import { useAuthStore } from '../../infrastructure/store/authStore'
-
 export function useShopAuth(options?: { onSuccess?: (data: any) => void }) {
     const { login, logout, user, isAuthenticated } = useShopAuthStore()
 
@@ -231,11 +229,8 @@ export const MODULE_REQUIREMENTS: Record<string, string[]> = {
 // ── Module route mapping ──────────────────────────────────────────────────────
 export const MODULE_ROUTES: Record<string, string> = {
     'job-cards': '/shop/m/job-cards',
-    'vehicles': '/shop/m/vehicles',
     'inventory': '/shop/m/inventory',
     'invoicing': '/shop/m/invoicing',
-    'analytics': '/shop/m/analytics',
-    'pwa': '/download-pwa',
     'crm': '/shop/m/crm',
     'employees': '/shop/m/employees',
     'global-db': '/shop/m/global-db',

@@ -50,12 +50,6 @@ def health_check():
     return {"status": "healthy"}
 
 
-@app.get("/debug-config")
-def debug_config():
-    from app.core.appwrite_client import DB_ID
-    from app.config import settings
-    return {"db_id": DB_ID, "env_db_id": settings.APPWRITE_DB_ID}
-
 
 # Include API routers
 from app.api.v1.router import api_router

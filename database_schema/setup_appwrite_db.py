@@ -1,4 +1,4 @@
-﻿"""
+"""
 CarrySpanner — Appwrite Database Setup Script
 =====================================================
 Creates the full database schema on Appwrite Cloud.
@@ -203,7 +203,7 @@ def setup():
     col("active_subs", "active_subs")
     attr_str     ("active_subs", "shop_id",          size=36, required=True)   # → shop.$id
     attr_str     ("active_subs", "subscription_id",  size=36, required=True)   # → subscriptions.$id
-    attr_datetime("active_subs", "date_of_activation", required=True)
+    attr_str     ("active_subs", "date_of_activation", size=50, required=True)  # ISO datetime string
 
     # ── 4. MECHANICS ────────────────────────────────────────────────────────
     print("\n[4/7] mechanics")

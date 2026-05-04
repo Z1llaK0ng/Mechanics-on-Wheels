@@ -447,9 +447,14 @@ def add_can_push_global_db():
 def add_vehicle_owner_shop_id():
     """
     Migration 6: Add optional 'shop_id' string attribute to the
-    vehicle_owners collection so that CRM customers are scoped per shop.
-    Existing documents are left with NULL (no backfill needed since all
-    pre-existing owners are legacy data without a shop context).
+    vehicle_owners collection.
+
+    NOTE: This field is superseded by the shop_customers junction table
+    introduced in Migration 7 (create_shop_customers). The CRM module no
+    longer stores or reads shop_id directly on vehicle_owner documents —
+    it uses shop_customers rows instead. This migration is retained for
+    historical completeness; the attribute can safely remain on the
+    collection and will always be null in practice.
     """
     print("\n━━━ [6] add_vehicle_owner_shop_id ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
     COL = "vehicle_owners"
@@ -559,7 +564,7 @@ def add_is_global_to_job_cards():
     and will be backfilled with is_global=True.
     """
     print("\n━━━ [9] add_is_global_to_job_cards ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-    COL = "job-cards"
+    COL = "job_cards"  # NOTE: underscore — not 'job-cards' (hyphen)
 
     print("  Adding attribute…")
     _bool_attr(COL, "is_global", required=False, default=False)

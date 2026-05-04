@@ -89,21 +89,6 @@ def login(form_data: OAuth2PasswordRequestForm = Depends()):
 @router.get("/me", response_model=MechanicResponse)
 def get_current_mechanic(current_user: dict = Depends(get_current_user)):
     """Get current authenticated mechanic's profile."""
-    # In case a shop admin gets here via shared auth endpoint
-    is_shop = "shop_name" in current_user and "first_name" not in current_user
-    if is_shop:
-        return MechanicResponse(
-            id=current_user["$id"],
-            first_name="Shop",
-            last_name="Admin",
-            email=current_user["email"],
-            shop_id=current_user["$id"],
-            active_status=True,
-            full_name=current_user.get("shop_name", "Shop Admin"),
-            shop_name=current_user.get("shop_name", "Shop Admin"),
-            can_push_global_db=True,
-        )
-    
     try:
         from app.core.appwrite_client import COL_SHOP
         shop_doc = databases.get_document(DB_ID, COL_SHOP, current_user.get("shop_id", ""))
