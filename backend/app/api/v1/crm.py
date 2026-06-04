@@ -37,7 +37,6 @@ def _owner_to_response(doc: dict, vehicle_count: int = 0) -> CustomerResponse:
         name=doc["name"],
         phone=doc.get("phone"),
         email=doc.get("email"),
-        shop_id=None,          # no longer stored on the customer doc
         vehicle_count=vehicle_count,
     )
 

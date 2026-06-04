@@ -139,21 +139,10 @@ def shop_login(
             raise HTTPException(status_code=422, detail="shop_id is required for mechanic login.")
 
         # Validate shop exists
-        shop_result = databases.list_documents(
-            database_id=DB_ID,
-            collection_id=COL_SHOP,
-            queries=[Query.equal("$id", shop_id)]
-        )
-        shop_docs = shop_result["documents"]
-        if not shop_docs:
-            # Try by document ID directly
-            try:
-                shop_doc = databases.get_document(DB_ID, COL_SHOP, shop_id)
-                shop_docs = [shop_doc]
-            except Exception:
-                raise HTTPException(status_code=404, detail="Shop not found.")
-
-        shop = shop_docs[0]
+        try:
+            shop = databases.get_document(DB_ID, COL_SHOP, shop_id)
+        except Exception:
+            raise HTTPException(status_code=404, detail="Shop not found.")
 
         # Find mechanic by email + shop
         mec_result = databases.list_documents(

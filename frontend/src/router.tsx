@@ -31,16 +31,14 @@ function PrivateRoute() {
 // ─── Shop Guard: real auth ────────────────────────────────────────────────────
 function ShopPrivateRoute({ requiredRole }: { requiredRole?: 'admin' | 'mechanic' }) {
     const { isAuthenticated, user } = useShopAuthStore()
+    // During Zustand rehydration, isAuthenticated can be true but user still null.
+    // Return null (render nothing) instead of redirecting to avoid a blank-page loop.
+    if (isAuthenticated && !user) return null
     if (!isAuthenticated) return <Navigate to="/shop/login" replace />
     if (requiredRole && user?.role !== requiredRole) return <Navigate to="/shop/login" replace />
     return <Outlet />
 }
 
-// Any authenticated shop user (admin OR mechanic/staff)
-function ShopAuthRoute() {
-    const { isAuthenticated } = useShopAuthStore()
-    return isAuthenticated ? <Outlet /> : <Navigate to="/shop/login" replace />
-}
 
 export default function AppRouter() {
     return (
@@ -64,7 +62,7 @@ export default function AppRouter() {
                 </Route>
 
                 {/* Admin + Staff: subscriptions + management */}
-                <Route element={<ShopAuthRoute />}>
+                <Route element={<ShopPrivateRoute />}>
                     <Route element={<ShopLayout />}>
                         <Route path="/shop/subscriptions" element={<ShopSubscriptionPage />} />
                         <Route path="/shop/management" element={<ShopManagementPage />} />

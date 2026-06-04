@@ -1,4 +1,4 @@
-﻿from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
@@ -18,7 +18,7 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
 
     # Application
-    APP_NAME: str = "MechanicERP API"
+    APP_NAME: str = "CarrySpanner API"
     DEBUG: bool = True
     API_V1_PREFIX: str = "/api/v1"
 

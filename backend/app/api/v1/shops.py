@@ -15,6 +15,23 @@ from app.schemas.mechanic import MechanicResponse
 router = APIRouter(prefix="/shops", tags=["Shops"])
 
 
+def _doc_to_mechanic_response(doc: dict) -> MechanicResponse:
+    """Build a MechanicResponse from an Appwrite document dict."""
+    full_name = f"{doc.get('first_name', '')} {doc.get('last_name', '')}".strip()
+    return MechanicResponse(
+        id=doc["$id"],
+        first_name=doc.get("first_name", ""),
+        last_name=doc.get("last_name", ""),
+        email=doc.get("email", ""),
+        shop_id=doc.get("shop_id", ""),
+        active_status=doc.get("active_status", False),
+        full_name=full_name or None,
+        staffrole=doc.get("staffrole", "technician"),
+        permitted_modules=doc.get("permitted_modules", []),
+        can_push_global_db=doc.get("can_push_global_db", False),
+    )
+
+
 class ShopUpdate(BaseModel):
     shop_name: Optional[str] = None
     location: Optional[str] = None
@@ -88,24 +105,7 @@ def list_shop_mechanics(
         collection_id=COL_MECHANICS,
         queries=[Query.equal("shop_id", shop_id)],
     )
-    mechanics = []
-    for doc in result["documents"]:
-        full_name = f"{doc.get('first_name', '')} {doc.get('last_name', '')}".strip()
-        mechanics.append(
-            MechanicResponse(
-                id=doc["$id"],
-                first_name=doc.get("first_name", ""),
-                last_name=doc.get("last_name", ""),
-                email=doc.get("email", ""),
-                shop_id=doc.get("shop_id", ""),
-                active_status=doc.get("active_status", False),
-                full_name=full_name or None,
-                staffrole=doc.get("staffrole", "technician"),
-                permitted_modules=doc.get("permitted_modules", []),
-                can_push_global_db=doc.get("can_push_global_db", False),
-            )
-        )
-    return mechanics
+    return [_doc_to_mechanic_response(doc) for doc in result["documents"]]
 
 
 @router.post("/{shop_id}/mechanics", response_model=MechanicResponse, status_code=status.HTTP_201_CREATED)
@@ -147,19 +147,7 @@ def create_mechanic_for_shop(
         },
     )
 
-    full_name = f"{doc.get('first_name', '')} {doc.get('last_name', '')}".strip()
-    return MechanicResponse(
-        id=doc["$id"],
-        first_name=doc.get("first_name", ""),
-        last_name=doc.get("last_name", ""),
-        email=doc.get("email", ""),
-        shop_id=doc.get("shop_id", ""),
-        active_status=doc.get("active_status", False),
-        full_name=full_name or None,
-        staffrole=doc.get("staffrole", "technician"),
-        permitted_modules=doc.get("permitted_modules", []),
-        can_push_global_db=doc.get("can_push_global_db", False),
-    )
+    return _doc_to_mechanic_response(doc)
 
 
 @router.patch("/mechanics/{mechanic_id}", response_model=MechanicResponse)
@@ -185,19 +173,7 @@ def toggle_mechanic_active(
         data={"active_status": new_status},
     )
 
-    full_name = f"{updated.get('first_name', '')} {updated.get('last_name', '')}".strip()
-    return MechanicResponse(
-        id=updated["$id"],
-        first_name=updated.get("first_name", ""),
-        last_name=updated.get("last_name", ""),
-        email=updated.get("email", ""),
-        shop_id=updated.get("shop_id", ""),
-        active_status=updated.get("active_status", False),
-        full_name=full_name or None,
-        staffrole=updated.get("staffrole", "technician"),
-        permitted_modules=updated.get("permitted_modules", []),
-        can_push_global_db=updated.get("can_push_global_db", False),
-    )
+    return _doc_to_mechanic_response(updated)
 
 
 class StaffRoleUpdate(BaseModel):
@@ -229,19 +205,7 @@ def update_mechanic_staffrole(
         data={"staffrole": payload.staffrole},
     )
 
-    full_name = f"{updated.get('first_name', '')} {updated.get('last_name', '')}".strip()
-    return MechanicResponse(
-        id=updated["$id"],
-        first_name=updated.get("first_name", ""),
-        last_name=updated.get("last_name", ""),
-        email=updated.get("email", ""),
-        shop_id=updated.get("shop_id", ""),
-        active_status=updated.get("active_status", False),
-        full_name=full_name or None,
-        staffrole=updated.get("staffrole", "technician"),
-        permitted_modules=updated.get("permitted_modules", []),
-        can_push_global_db=updated.get("can_push_global_db", False),
-    )
+    return _doc_to_mechanic_response(updated)
 
 
 class MechanicModulesUpdate(BaseModel):
@@ -270,19 +234,7 @@ def update_mechanic_modules(
         data={"permitted_modules": payload.permitted_modules},
     )
 
-    full_name = f"{updated.get('first_name', '')} {updated.get('last_name', '')}".strip()
-    return MechanicResponse(
-        id=updated["$id"],
-        first_name=updated.get("first_name", ""),
-        last_name=updated.get("last_name", ""),
-        email=updated.get("email", ""),
-        shop_id=updated.get("shop_id", ""),
-        active_status=updated.get("active_status", False),
-        full_name=full_name or None,
-        staffrole=updated.get("staffrole", "technician"),
-        permitted_modules=updated.get("permitted_modules", []),
-        can_push_global_db=updated.get("can_push_global_db", False),
-    )
+    return _doc_to_mechanic_response(updated)
 
 
 class GlobalDbPushUpdate(BaseModel):
@@ -311,19 +263,7 @@ def update_mechanic_global_db_push(
         data={"can_push_global_db": payload.can_push_global_db},
     )
 
-    full_name = f"{updated.get('first_name', '')} {updated.get('last_name', '')}".strip()
-    return MechanicResponse(
-        id=updated["$id"],
-        first_name=updated.get("first_name", ""),
-        last_name=updated.get("last_name", ""),
-        email=updated.get("email", ""),
-        shop_id=updated.get("shop_id", ""),
-        active_status=updated.get("active_status", False),
-        full_name=full_name or None,
-        staffrole=updated.get("staffrole", "technician"),
-        permitted_modules=updated.get("permitted_modules", []),
-        can_push_global_db=updated.get("can_push_global_db", False),
-    )
+    return _doc_to_mechanic_response(updated)
 
 
 @router.delete("/mechanics/{mechanic_id}", status_code=status.HTTP_204_NO_CONTENT)

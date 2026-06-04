@@ -37,7 +37,12 @@ shopApiClient.interceptors.request.use((config) => {
 shopApiClient.interceptors.response.use(
     (response) => response,
     (error) => {
-        if (error.response?.status === 401) {
+        const url = error.config?.url ?? ''
+        const isLoginEndpoint = url.includes('/auth/shop-login') || url.includes('/auth/login')
+
+        if (error.response?.status === 401 && !isLoginEndpoint) {
+            // Only auto-logout for authenticated requests that get a 401,
+            // never for the login request itself (wrong password = 401 but should show error to user).
             useShopAuthStore.getState().logout()
             window.location.href = '/shop/login'
         }

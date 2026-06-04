@@ -30,7 +30,10 @@ apiClient.interceptors.request.use((config) => {
 apiClient.interceptors.response.use(
     (response) => response,
     (error) => {
-        if (error.response?.status === 401) {
+        const url = error.config?.url ?? ''
+        const isLoginEndpoint = url.includes('/auth/login') || url.includes('/auth/shop-login')
+
+        if (error.response?.status === 401 && !isLoginEndpoint) {
             if (window.location.pathname.startsWith('/shop')) {
                 useShopAuthStore.getState().logout()
                 window.location.href = '/shop/login'

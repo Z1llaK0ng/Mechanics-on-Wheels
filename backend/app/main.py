@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
+from app.api.v1.router import api_router
 
 # Create FastAPI application
 app = FastAPI(
@@ -33,7 +34,8 @@ async def startup():
     """Verify Appwrite connectivity on startup."""
     try:
         from app.core.appwrite_client import databases, DB_ID
-        databases.get(DB_ID)
+        from appwrite.query import Query
+        databases.list_documents(database_id=DB_ID, collection_id="shops", queries=[Query.limit(1)])
         print(f"[OK] Appwrite connected — database '{DB_ID}' is ready")
     except Exception as e:
         print(f"[WARN] Appwrite health check failed: {e}")
@@ -42,15 +44,11 @@ async def startup():
 
 @app.get("/")
 def root():
-    return {"message": "Welcome to MechanicERP API", "version": "1.0.0", "status": "operational"}
+    return {"message": "Welcome to CarrySpanner API", "version": "1.0.0", "status": "operational"}
 
 
 @app.get("/health")
 def health_check():
     return {"status": "healthy"}
 
-
-
-# Include API routers
-from app.api.v1.router import api_router
 app.include_router(api_router, prefix=settings.API_V1_PREFIX)

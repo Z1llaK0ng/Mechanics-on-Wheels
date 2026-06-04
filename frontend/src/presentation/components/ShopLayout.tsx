@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { useShopAuthStore } from '../hooks/useShopAuth'
+import { useShopAuthStore, MODULE_ROUTES } from '../hooks/useShopAuth'
 import shopApiClient from '../../infrastructure/api/shopClient'
 
 const FallbackModuleNames: Record<string, {name: string, icon: string}> = {
@@ -137,10 +137,25 @@ export default function ShopLayout() {
                     )}
 
                     {isTechnician && (
-                        <NavLink to="/shop/modules" className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`}>
-                            <span className="sidebar-link-icon">🔧</span>
-                            {!collapsed && <span className="sidebar-link-label">Provided Modules</span>}
-                        </NavLink>
+                        <>
+                            <NavLink to="/shop/modules" className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`}>
+                                <span className="sidebar-link-icon">🧩</span>
+                                {!collapsed && <span className="sidebar-link-label">Provided Modules</span>}
+                            </NavLink>
+
+                            {/* Dynamic links for each permitted module */}
+                            {(user?.permittedModules ?? []).map(modId => {
+                                const route = MODULE_ROUTES[modId]
+                                if (!route) return null
+                                const meta = FallbackModuleNames[modId] || { name: modId, icon: '🔧' }
+                                return (
+                                    <NavLink key={modId} to={route} className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`}>
+                                        <span className="sidebar-link-icon">{meta.icon}</span>
+                                        {!collapsed && <span className="sidebar-link-label">{meta.name}</span>}
+                                    </NavLink>
+                                )
+                            })}
+                        </>
                     )}
                 </nav>
 
@@ -161,7 +176,7 @@ export default function ShopLayout() {
                             <div style={{ padding: '8px 12px', marginBottom: 8 }}>
                                 <div style={{ fontSize: 13, fontWeight: 600 }}>{user?.name ?? 'User'}</div>
                                 <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
-                                    {isStaff ? 'Staff' : 'Mechanic'}
+                                    {isStaff ? 'Staff' : 'Mechanic'} · {user?.shopName}
                                 </div>
                             </div>
                         )

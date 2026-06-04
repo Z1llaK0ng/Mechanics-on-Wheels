@@ -1,5 +1,5 @@
 """
-JWT security utilities for the MechanicERP API.
+JWT security utilities for the CarrySpanner API.
 Password hashing, token creation/decoding, and the get_current_user dependency.
 Uses Appwrite instead of SQLAlchemy for user lookup.
 """

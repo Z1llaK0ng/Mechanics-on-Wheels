@@ -20,7 +20,6 @@ class CustomerResponse(BaseModel):
     name: str
     phone: Optional[str] = None
     email: Optional[str] = None
-    shop_id: Optional[str] = None
     vehicle_count: int = 0
 
     model_config = {"from_attributes": True}

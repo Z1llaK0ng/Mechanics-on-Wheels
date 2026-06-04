@@ -1,5 +1,6 @@
 from typing import List, Optional
 from datetime import datetime, timezone
+from pydantic import BaseModel
 
 from appwrite.id import ID
 from appwrite.query import Query
@@ -35,6 +36,18 @@ def _doc_to_response(doc: dict) -> JobCardResponse:
         updated_at=doc.get("updated_at"),
         is_uploaded=doc.get("is_uploaded", False),
     )
+
+
+def _set_is_uploaded(doc: dict) -> None:
+    """Query global_db and set doc['is_uploaded'] in place."""
+    try:
+        g_docs = databases.list_documents(
+            DB_ID, COL_GLOBAL_DB,
+            queries=[Query.equal("job_card_id", doc["$id"])],
+        )["documents"]
+        doc["is_uploaded"] = len(g_docs) > 0
+    except Exception:
+        doc["is_uploaded"] = False
 
 
 @router.post("", response_model=JobCardResponse, status_code=status.HTTP_201_CREATED)
@@ -128,17 +141,7 @@ def get_job_card(
         
     _check_job_card_access(doc, current_user)
     
-    # Check if uploaded
-    try:
-        g_docs = databases.list_documents(
-            database_id=DB_ID,
-            collection_id=COL_GLOBAL_DB,
-            queries=[Query.equal("job_card_id", job_card_id)]
-        )["documents"]
-        doc["is_uploaded"] = len(g_docs) > 0
-    except Exception:
-        doc["is_uploaded"] = False
-
+    _set_is_uploaded(doc)
     return _doc_to_response(doc)
 
 
@@ -160,11 +163,7 @@ def update_job_card(
     # omit updated_at — it's a datetime attribute; Appwrite tracks $updatedAt automatically
 
     doc = databases.update_document(DB_ID, COL_JOB_CARDS, job_card_id, data)
-    try:
-        g_docs = databases.list_documents(DB_ID, COL_GLOBAL_DB, queries=[Query.equal("job_card_id", job_card_id)])["documents"]
-        doc["is_uploaded"] = len(g_docs) > 0
-    except Exception:
-        doc["is_uploaded"] = False
+    _set_is_uploaded(doc)
     return _doc_to_response(doc)
 
 
@@ -202,11 +201,7 @@ def update_job_card_status(
         DB_ID, COL_JOB_CARDS, job_card_id,
         {"status": new_status}  # omit updated_at — Appwrite tracks $updatedAt automatically
     )
-    try:
-        g_docs = databases.list_documents(DB_ID, COL_GLOBAL_DB, queries=[Query.equal("job_card_id", job_card_id)])["documents"]
-        doc["is_uploaded"] = len(g_docs) > 0
-    except Exception:
-        doc["is_uploaded"] = False
+    _set_is_uploaded(doc)
     return _doc_to_response(doc)
 
 
@@ -279,14 +274,12 @@ def backfill_shop_id(current_user: dict = Depends(get_current_user)):
 
 # ── Tag selected job cards with the current shop_id ───────────────────────────
 
-from pydantic import BaseModel as _BaseModel
-
-class TagShopIdRequest(_BaseModel):
+class JobCardIdsRequest(BaseModel):
     job_card_ids: List[str]
 
 @router.patch("/tag-shop-id", tags=["Job Cards"])
 def tag_shop_id(
-    payload: TagShopIdRequest,
+    payload: JobCardIdsRequest,
     current_user: dict = Depends(get_current_user),
 ):
     """
@@ -336,12 +329,9 @@ def tag_shop_id(
 
 # ── Untag: clear shop_id from selected job cards (remove from global DB) ──────
 
-class UntagShopIdRequest(_BaseModel):
-    job_card_ids: List[str]
-
 @router.patch("/untag-shop-id", tags=["Job Cards"])
 def untag_shop_id(
-    payload: UntagShopIdRequest,
+    payload: JobCardIdsRequest,
     current_user: dict = Depends(get_current_user),
 ):
     """
