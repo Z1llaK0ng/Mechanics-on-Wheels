@@ -9,6 +9,8 @@ import GlobalDbPage from './presentation/pages/erp/GlobalDbPage'
 import CrmPage from './presentation/pages/erp/CrmPage'
 import AppLayout from './presentation/components/AppLayout'
 import LandingPage from './presentation/pages/LandingPage'
+import PWADownloadPage from './presentation/pages/erp/PWADownloadPage'
+
 
 // ── Shop Portal ───────────────────────────────────────────────────────────────
 import ShopLoginPage from './presentation/pages/logins/ShopLoginPage'
@@ -87,6 +89,7 @@ export default function AppRouter() {
                         <Route path="/vehicles" element={<VehiclesPage />} />
                         <Route path="/global-db" element={<GlobalDbPage />} />
                         <Route path="/crm" element={<CrmPage />} />
+                        <Route path="/download-pwa" element={<PWADownloadPage />} />
                     </Route>
                 </Route>
 

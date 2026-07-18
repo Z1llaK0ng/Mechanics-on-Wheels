@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import shopApiClient from '../../../infrastructure/api/shopClient'
 import type { VehicleOwner, VehicleOwnerDetail, Vehicle, JobCard, NotifyResponse } from '../../../domain/types'
+import { capitalizeName } from '../../utils'
 
 // ── Status helpers ──────────────────────────────────────────────────────────
 
@@ -47,7 +48,7 @@ export default function CrmPage() {
     // Modals
     const [showAddCustomer,   setShowAddCustomer]   = useState(false)
     const [showLinkCustomer,  setShowLinkCustomer]  = useState(false)
-    const [showAddVehicle,    setShowAddVehicle]    = useState(false)
+    const [showAddVehicle,    setShowAddVehicle]    = useState<{ registry: string; vin: string } | boolean>(false)
     const [assignTarget,      setAssignTarget]       = useState<Vehicle | null>(null)
     const [notifyTarget,      setNotifyTarget]       = useState<{ customer: VehicleOwner; jobCard: JobCard } | null>(null)
 
@@ -140,6 +141,7 @@ export default function CrmPage() {
                     <VehiclesTab
                         search={search}
                         onAssignOwner={v => setAssignTarget(v)}
+                        onRegisterVehicle={prefill => setShowAddVehicle(prefill)}
                     />
                 )}
                 {activeTab === 'jobcards' && (
@@ -154,7 +156,12 @@ export default function CrmPage() {
             {/* ── Modals ── */}
             {showAddCustomer  && <AddCustomerModal  onClose={() => setShowAddCustomer(false)} />}
             {showLinkCustomer && <LinkCustomerModal onClose={() => setShowLinkCustomer(false)} />}
-            {showAddVehicle   && <AddVehicleModal   onClose={() => setShowAddVehicle(false)} />}
+            {showAddVehicle   && (
+                <AddVehicleModal
+                    onClose={() => setShowAddVehicle(false)}
+                    prefill={typeof showAddVehicle === 'object' ? showAddVehicle : undefined}
+                />
+            )}
             {assignTarget     && <AssignOwnerModal vehicle={assignTarget} onClose={() => setAssignTarget(null)} />}
             {notifyTarget    && (
                 <NotifyModal
@@ -279,10 +286,14 @@ function CustomersTab({
 function VehiclesTab({
     search,
     onAssignOwner,
+    onRegisterVehicle,
 }: {
     search: string
     onAssignOwner: (v: Vehicle) => void
+    onRegisterVehicle: (prefill: { registry: string; vin: string }) => void
 }) {
+    const qc = useQueryClient()
+
     const { data: vehicles = [], isLoading } = useQuery<Vehicle[]>({
         queryKey: ['crm', 'vehicles'],
         queryFn: () => shopApiClient.get<Vehicle[]>('/crm/vehicles?limit=200').then(r => r.data),
@@ -293,7 +304,64 @@ function VehiclesTab({
         queryFn: () => shopApiClient.get<VehicleOwner[]>('/crm/customers?limit=200').then(r => r.data),
     })
 
+    const { data: jobCards = [] } = useQuery<JobCard[]>({
+        queryKey: ['crm', 'job-cards'],
+        queryFn: () => shopApiClient.get<JobCard[]>('/job-cards?limit=100').then(r => r.data),
+    })
+
+    const [dismissedAlerts, setDismissedAlerts] = useState<string[]>([])
+
     const ownerMap = Object.fromEntries(customers.map(c => [c.id, c]))
+
+    const updateRegistryMutation = useMutation({
+        mutationFn: ({ oldRegistry, newRegistry }: { oldRegistry: string; newRegistry: string }) =>
+            shopApiClient.put(`/vehicles/${encodeURIComponent(oldRegistry)}`, { registry: newRegistry }),
+        onSuccess: () => {
+            qc.invalidateQueries({ queryKey: ['crm', 'vehicles'] })
+            qc.invalidateQueries({ queryKey: ['crm', 'job-cards'] })
+        },
+    })
+
+    const pendingActions = useMemo(() => {
+        const toCreate: { registry: string; vin: string }[] = []
+        const toUpdate: { registry: string; vin: string; oldRegistry: string }[] = []
+
+        const registeredVins = new Set(vehicles.map(v => v.vin.trim().toUpperCase()))
+        const registeredRegistries = new Set(vehicles.map(v => v.registry.trim().toUpperCase()))
+
+        const seenVins = new Set<string>()
+        const seenRegistries = new Set<string>()
+
+        jobCards.forEach(jc => {
+            const vin = jc.vehicle_vin?.trim().toUpperCase()
+            const registry = jc.vehicle_registry?.trim().toUpperCase()
+            if (!vin || !registry) return
+
+            if (seenVins.has(vin) || seenRegistries.has(registry) || dismissedAlerts.includes(vin)) return
+
+            const vinExists = registeredVins.has(vin)
+            const registryExists = registeredRegistries.has(registry)
+
+            if (!vinExists) {
+                toCreate.push({ registry: jc.vehicle_registry, vin: jc.vehicle_vin })
+                seenVins.add(vin)
+                seenRegistries.add(registry)
+            } else if (!registryExists) {
+                const existingVehicle = vehicles.find(v => v.vin.trim().toUpperCase() === vin)
+                if (existingVehicle && existingVehicle.registry.trim().toUpperCase() !== registry) {
+                    toUpdate.push({
+                        registry: jc.vehicle_registry,
+                        vin: jc.vehicle_vin,
+                        oldRegistry: existingVehicle.registry,
+                    })
+                    seenVins.add(vin)
+                    seenRegistries.add(registry)
+                }
+            }
+        })
+
+        return { toCreate, toUpdate }
+    }, [vehicles, jobCards, dismissedAlerts])
 
     const filtered = vehicles.filter(v =>
         !search ||
@@ -306,55 +374,161 @@ function VehiclesTab({
     if (isLoading) return <LoadingState label="Loading vehicles…" />
 
     return (
-        <div className="table-wrapper">
-            <table>
-                <thead>
-                    <tr>
-                        <th>Plate / Registry</th>
-                        <th>VIN</th>
-                        <th>Make</th>
-                        <th>Model</th>
-                        <th>Owner</th>
-                        <th>Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {filtered.length === 0 ? (
-                        <tr><td colSpan={6} style={{ textAlign: 'center', color: 'var(--text-secondary)', padding: 36 }}>
-                            {search ? 'No vehicles match your search.' : 'No vehicles linked to this shop yet.'}
-                        </td></tr>
-                    ) : filtered.map(v => {
-                        const owner = v.owner_id ? ownerMap[v.owner_id] : null
-                        return (
-                            <tr key={v.registry}>
-                                <td style={{ fontWeight: 600 }}>{v.registry}</td>
-                                <td style={{ fontFamily: 'monospace', fontSize: 12, color: 'var(--text-secondary)' }}>{v.vin}</td>
-                                <td>{v.company ?? v.make ?? '—'}</td>
-                                <td>{v.brand ?? v.model ?? '—'}</td>
-                                <td>
-                                    {owner ? (
-                                        <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                                            <span className="badge badge-success">✓</span>
-                                            {owner.name}
-                                        </span>
-                                    ) : (
-                                        <span className="badge badge-warning">Unassigned</span>
-                                    )}
-                                </td>
-                                <td>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            {/* ── Alerts for New/Mismatched Vehicles ── */}
+            {(pendingActions.toCreate.length > 0 || pendingActions.toUpdate.length > 0) && (
+                <div style={{
+                    background: 'rgba(59, 130, 246, 0.08)',
+                    border: '1px solid rgba(59, 130, 246, 0.25)',
+                    borderRadius: 12,
+                    padding: '16px 20px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 12,
+                    animation: 'fadeIn 0.2s ease',
+                }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 700, color: 'var(--accent-light)' }}>
+                        <span>🔍</span>
+                        <span>Unregistered / Updated Vehicles Detected in Job Cards</span>
+                        <span className="badge badge-accent" style={{ fontSize: 10, padding: '2px 6px', textTransform: 'none' }}>
+                            {pendingActions.toCreate.length + pendingActions.toUpdate.length} Suggestion(s)
+                        </span>
+                    </div>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        {pendingActions.toCreate.map(action => (
+                            <div key={action.vin} style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                background: 'var(--bg-tertiary)',
+                                padding: '10px 14px',
+                                borderRadius: 8,
+                                border: '1px solid var(--border-subtle)',
+                            }}>
+                                <div style={{ fontSize: 13, color: 'var(--text-primary)' }}>
+                                    🚗 New vehicle detected: License Plate <strong style={{ color: 'var(--accent-light)' }}>{action.registry}</strong> (VIN: <code style={{ fontFamily: 'monospace', color: 'var(--text-secondary)' }}>{action.vin}</code>)
+                                </div>
+                                <div style={{ display: 'flex', gap: 8 }}>
                                     <button
                                         className="btn btn-secondary btn-sm"
-                                        id={`crm-assign-owner-${v.registry}`}
-                                        onClick={() => onAssignOwner(v)}
+                                        onClick={() => setDismissedAlerts(prev => [...prev, action.vin.trim().toUpperCase()])}
                                     >
-                                        {owner ? '🔄 Change Owner' : '👤 Assign Owner'}
+                                        Ignore
                                     </button>
-                                </td>
-                            </tr>
-                        )
-                    })}
-                </tbody>
-            </table>
+                                    <button
+                                        className="btn btn-primary btn-sm"
+                                        onClick={() => onRegisterVehicle({ registry: action.registry, vin: action.vin })}
+                                    >
+                                        Create Profile
+                                    </button>
+                                </div>
+                            </div>
+                        ))}
+
+                        {pendingActions.toUpdate.map(action => (
+                            <div key={action.vin} style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                background: 'var(--bg-tertiary)',
+                                padding: '10px 14px',
+                                borderRadius: 8,
+                                border: '1px solid var(--border-subtle)',
+                            }}>
+                                <div style={{ fontSize: 13, color: 'var(--text-primary)' }}>
+                                    🔄 License plate mismatch: VIN <code style={{ fontFamily: 'monospace', color: 'var(--text-secondary)' }}>{action.vin}</code> has plate <strong style={{ color: 'var(--warning)' }}>{action.registry}</strong> in Job Cards, but profile has <strong style={{ color: 'var(--text-secondary)' }}>{action.oldRegistry}</strong>.
+                                </div>
+                                <div style={{ display: 'flex', gap: 8 }}>
+                                    <button
+                                        className="btn btn-secondary btn-sm"
+                                        onClick={() => setDismissedAlerts(prev => [...prev, action.vin.trim().toUpperCase()])}
+                                    >
+                                        Ignore
+                                    </button>
+                                    <button
+                                        className="btn btn-primary btn-sm"
+                                        style={{ background: 'var(--warning)', borderColor: 'var(--warning)', color: '#000' }}
+                                        disabled={updateRegistryMutation.isPending}
+                                        onClick={async () => {
+                                            if (confirm(`Update license plate for VIN ${action.vin} from "${action.oldRegistry}" to "${action.registry}"?`)) {
+                                                try {
+                                                    await updateRegistryMutation.mutateAsync({
+                                                        oldRegistry: action.oldRegistry,
+                                                        newRegistry: action.registry,
+                                                    })
+                                                } catch (e: any) {
+                                                    alert(e?.response?.data?.detail ?? 'Failed to update license plate.')
+                                                }
+                                            }
+                                        }}
+                                    >
+                                        {updateRegistryMutation.isPending ? 'Updating…' : 'Update Profile'}
+                                    </button>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+
+            <div className="table-wrapper">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Plate / Registry</th>
+                            <th>VIN</th>
+                            <th>Make</th>
+                            <th>Model</th>
+                            <th>Owner</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {filtered.length === 0 ? (
+                            <tr><td colSpan={6} style={{ textAlign: 'center', color: 'var(--text-secondary)', padding: 36 }}>
+                                {search ? 'No vehicles match your search.' : 'No vehicles linked to this shop yet.'}
+                            </td></tr>
+                        ) : filtered.map(v => {
+                            const owner = v.owner_id ? ownerMap[v.owner_id] : null
+                            return (
+                                <tr key={v.registry}>
+                                    <td style={{ fontWeight: 600 }}>
+                                        {v.registry}
+                                        {v.past_registry_num && v.past_registry_num.length > 0 && (
+                                            <div style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 400, marginTop: 2 }}>
+                                                Prev: {v.past_registry_num.join(', ')}
+                                            </div>
+                                        )}
+                                    </td>
+                                    <td style={{ fontFamily: 'monospace', fontSize: 12, color: 'var(--text-secondary)' }}>{v.vin}</td>
+                                    <td>{v.company ?? v.make ?? '—'}</td>
+                                    <td>{v.brand ?? v.model ?? '—'}</td>
+                                    <td>
+                                        {owner ? (
+                                            <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                                <span className="badge badge-success">✓</span>
+                                                {owner.name}
+                                            </span>
+                                        ) : (
+                                            <span className="badge badge-warning">Unassigned</span>
+                                        )}
+                                    </td>
+                                    <td>
+                                        <button
+                                            className="btn btn-secondary btn-sm"
+                                            id={`crm-assign-owner-${v.registry}`}
+                                            onClick={() => onAssignOwner(v)}
+                                        >
+                                            {owner ? '🔄 Change Owner' : '👤 Assign Owner'}
+                                        </button>
+                                    </td>
+                                </tr>
+                            )
+                        })}
+                    </tbody>
+                </table>
+            </div>
         </div>
     )
 }
@@ -586,7 +760,7 @@ function CustomerDrawer({
                                         <button
                                             className="btn btn-primary btn-sm"
                                             disabled={editMutation.isPending || !editForm.name}
-                                            onClick={() => editMutation.mutate(editForm)}
+                                            onClick={() => editMutation.mutate({ ...editForm, name: capitalizeName(editForm.name) })}
                                         >
                                             {editMutation.isPending ? 'Saving…' : '💾 Save'}
                                         </button>
@@ -674,7 +848,10 @@ function AddCustomerModal({ onClose }: { onClose: () => void }) {
     const [error, setError] = useState<string | null>(null)
 
     const mutation = useMutation({
-        mutationFn: () => shopApiClient.post('/crm/customers', form).then(r => r.data),
+        mutationFn: () => shopApiClient.post('/crm/customers', {
+            ...form,
+            name: capitalizeName(form.name)
+        }).then(r => r.data),
         onSuccess: () => { qc.invalidateQueries({ queryKey: ['crm', 'customers'] }); onClose() },
         onError: (e: any) => setError(e?.response?.data?.detail ?? 'Failed to create customer.'),
     })
@@ -807,9 +984,21 @@ function LinkCustomerModal({ onClose }: { onClose: () => void }) {
     )
 }
 
-function AddVehicleModal({ onClose }: { onClose: () => void }) {
+function AddVehicleModal({
+    onClose,
+    prefill,
+}: {
+    onClose: () => void
+    prefill?: { registry: string; vin: string }
+}) {
     const qc = useQueryClient()
-    const [form, setForm] = useState({ registry: '', vin: '', company: '', brand: '', owner_id: '' })
+    const [form, setForm] = useState({
+        registry: prefill?.registry ?? '',
+        vin: prefill?.vin ?? '',
+        company: '',
+        brand: '',
+        owner_id: ''
+    })
     const [error, setError] = useState<string | null>(null)
 
     const { data: customers = [] } = useQuery<VehicleOwner[]>({
@@ -819,8 +1008,11 @@ function AddVehicleModal({ onClose }: { onClose: () => void }) {
 
     const mutation = useMutation({
         mutationFn: () => shopApiClient.post('/crm/vehicles', {
-            registry: form.registry, vin: form.vin, company: form.company,
-            brand: form.brand, owner_id: form.owner_id || undefined,
+            registry: form.registry,
+            vin: form.vin,
+            company: capitalizeName(form.company),
+            brand: capitalizeName(form.brand),
+            owner_id: form.owner_id || undefined,
         }).then(r => r.data),
         onSuccess: () => { qc.invalidateQueries({ queryKey: ['crm', 'vehicles'] }); onClose() },
         onError: (e: any) => setError(e?.response?.data?.detail ?? 'Failed to register vehicle.'),
@@ -909,9 +1101,57 @@ function AssignOwnerModal({ vehicle, onClose }: { vehicle: Vehicle; onClose: () 
 }
 
 function NotifyModal({ customer, jobCard, onClose }: { customer: VehicleOwner; jobCard: JobCard; onClose: () => void }) {
+    const qc = useQueryClient()
+    const [isVerified, setIsVerified] = useState(!!customer.phone_verified)
+    const [sentCode, setSentCode] = useState(false)
+    const [code, setCode] = useState('')
+    const [verifError, setVerifError] = useState<string | null>(null)
+    const [successMsg, setSuccessMsg] = useState<string | null>(null)
+
     const [customMsg, setCustomMsg] = useState('')
     const [result, setResult] = useState<NotifyResponse | null>(null)
     const [error, setError] = useState<string | null>(null)
+
+    // Direct in-app SMS state
+    const [sendingSms, setSendingSms] = useState(false)
+    const [smsSent, setSmsSent] = useState(false)
+    const [sendSmsError, setSendSmsError] = useState<string | null>(null)
+
+    // OTP Mutations
+    const sendOtpMutation = useMutation({
+        mutationFn: () => shopApiClient.post(`/crm/customers/${customer.id}/otp/send`, { phone: customer.phone }).then(r => r.data),
+        onSuccess: () => {
+            setSentCode(true)
+            setVerifError(null)
+        },
+        onError: (err: any) => {
+            setVerifError(err?.response?.data?.detail ?? 'Failed to send verification code.')
+        }
+    })
+
+    const verifyOtpMutation = useMutation({
+        mutationFn: () => shopApiClient.post(`/crm/customers/${customer.id}/otp/verify`, { phone: customer.phone, code }).then(r => r.data),
+        onSuccess: () => {
+            qc.invalidateQueries({ queryKey: ['crm', 'customers'] })
+            setIsVerified(true)
+            setSuccessMsg('Phone number verified successfully! ✅')
+            setVerifError(null)
+        },
+        onError: (err: any) => {
+            setVerifError(err?.response?.data?.detail ?? 'Failed to verify code.')
+        }
+    })
+
+    const resendOtpMutation = useMutation({
+        mutationFn: () => shopApiClient.post(`/crm/customers/${customer.id}/otp/resend`, { phone: customer.phone }).then(r => r.data),
+        onSuccess: (data: any) => {
+            setVerifError(null)
+            alert(data.message || 'OTP code resent successfully!')
+        },
+        onError: (err: any) => {
+            setVerifError(err?.response?.data?.detail ?? 'Failed to resend verification code.')
+        }
+    })
 
     const mutation = useMutation({
         mutationFn: () => shopApiClient.post<NotifyResponse>(`/crm/customers/${customer.id}/notify`, {
@@ -922,37 +1162,141 @@ function NotifyModal({ customer, jobCard, onClose }: { customer: VehicleOwner; j
         onError: (e: any) => setError(e?.response?.data?.detail ?? 'Failed to prepare notification.'),
     })
 
+    const triggerSendSms = async (phone: string, message: string) => {
+        setSendingSms(true)
+        setSendSmsError(null)
+        try {
+            await shopApiClient.post(`/crm/customers/${customer.id}/send-sms`, {
+                phone,
+                message
+            })
+            setSmsSent(true)
+        } catch (e: any) {
+            setSendSmsError(e?.response?.data?.detail ?? 'Failed to send SMS through the app.')
+        } finally {
+            setSendingSms(false)
+        }
+    }
+
     return (
         <ModalShell title="🔔 Customer Notification" onClose={onClose}>
             <div style={{ padding: '0 24px', display: 'flex', flexDirection: 'column', gap: 16 }}>
                 {!result ? (
-                    <>
-                        <div style={{ padding: '12px 16px', background: 'var(--bg-tertiary)', borderRadius: 8, border: '1px solid var(--border-subtle)' }}>
-                            <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 6, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Preparing notification for</div>
-                            <div style={{ fontWeight: 700, fontSize: 15 }}>{customer.name}</div>
-                            <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 2 }}>
-                                {customer.phone && <span>📞 {customer.phone} &nbsp;</span>}
-                                {customer.email && <span>✉️ {customer.email}</span>}
-                                {!customer.phone && !customer.email && <span style={{ color: 'var(--warning)' }}>⚠️ No contact info on file</span>}
+                    !isVerified ? (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                            <div style={{ padding: '12px 16px', background: 'var(--bg-tertiary)', borderRadius: 8, border: '1px solid var(--border-subtle)' }}>
+                                <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 6, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Customer</div>
+                                <div style={{ fontWeight: 700, fontSize: 15 }}>{customer.name}</div>
+                                <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 2 }}>
+                                    📞 {customer.phone || <span style={{ color: 'var(--danger)' }}>No phone number on file</span>}
+                                </div>
                             </div>
-                        </div>
 
-                        <InfoField label="Vehicle" value={jobCard.vehicle_registry} />
-                        <InfoField label="Job Card ID" value={jobCard.job_card_id} mono />
+                            {!customer.phone ? (
+                                <div style={{
+                                    padding: '14px', background: 'rgba(239,68,68,0.08)',
+                                    border: '1px solid rgba(239,68,68,0.25)', borderRadius: 10,
+                                    textAlign: 'center', color: 'var(--danger)', fontSize: 13
+                                }}>
+                                    ⚠️ Verification impossible: This customer does not have a phone number on file. Please add a phone number to their profile.
+                                </div>
+                            ) : (
+                                <div style={{
+                                    padding: '16px', background: 'var(--bg-secondary)',
+                                    border: '1px solid var(--border-subtle)', borderRadius: 10,
+                                    display: 'flex', flexDirection: 'column', gap: 14
+                                }}>
+                                    <div style={{ fontWeight: 600, fontSize: 14, display: 'flex', alignItems: 'center', gap: 6 }}>
+                                        <span>🔐</span> Phone Verification Required
+                                    </div>
+                                    <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: 0 }}>
+                                        Before sending SMS notifications, please verify the customer's phone number.
+                                    </p>
 
-                        <div className="form-group">
-                            <label className="form-label">Custom Message (optional)</label>
-                            <textarea
-                                className="form-input"
-                                rows={3}
-                                placeholder="Leave blank to use the default message…"
-                                value={customMsg}
-                                onChange={e => setCustomMsg(e.target.value)}
-                                style={{ resize: 'vertical' }}
-                            />
+                                    {!sentCode ? (
+                                        <button
+                                            className="btn btn-primary"
+                                            style={{ alignSelf: 'flex-start' }}
+                                            onClick={() => sendOtpMutation.mutate()}
+                                            disabled={sendOtpMutation.isPending}
+                                        >
+                                            {sendOtpMutation.isPending ? 'Sending Code…' : '📨 Send Verification Code'}
+                                        </button>
+                                    ) : (
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                                            <div style={{ fontSize: 11, padding: '6px 10px', background: 'var(--bg-tertiary)', borderRadius: 6, color: 'var(--accent-light)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                <span>💡 Check customer's phone for code. (Demo: use code <strong>1234</strong>)</span>
+                                                <button
+                                                    onClick={() => resendOtpMutation.mutate()}
+                                                    disabled={resendOtpMutation.isPending}
+                                                    style={{ background: 'none', border: 'none', color: 'var(--accent-light)', textDecoration: 'underline', cursor: 'pointer', fontSize: 11 }}
+                                                >
+                                                    {resendOtpMutation.isPending ? 'Resending…' : 'Resend OTP'}
+                                                </button>
+                                            </div>
+                                            <div style={{ display: 'flex', gap: 8 }}>
+                                                <input
+                                                    type="text"
+                                                    className="form-input"
+                                                    placeholder="Enter 4-digit code"
+                                                    value={code}
+                                                    maxLength={4}
+                                                    onChange={e => setCode(e.target.value)}
+                                                    style={{ maxWidth: 160 }}
+                                                />
+                                                <button
+                                                    className="btn btn-primary"
+                                                    disabled={verifyOtpMutation.isPending || code.length < 4}
+                                                    onClick={() => verifyOtpMutation.mutate()}
+                                                >
+                                                    {verifyOtpMutation.isPending ? 'Verifying…' : 'Verify'}
+                                                </button>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {verifError && <ErrorBanner msg={verifError} />}
+                                </div>
+                            )}
                         </div>
-                        {error && <ErrorBanner msg={error} />}
-                    </>
+                    ) : (
+                        <>
+                            {successMsg && (
+                                <div style={{
+                                    padding: '10px 14px', background: 'rgba(16,185,129,0.1)',
+                                    border: '1px solid rgba(16,185,129,0.3)', borderRadius: 8,
+                                    color: 'var(--success)', fontSize: 13
+                                }}>
+                                    {successMsg}
+                                </div>
+                            )}
+
+                            <div style={{ padding: '12px 16px', background: 'var(--bg-tertiary)', borderRadius: 8, border: '1px solid var(--border-subtle)' }}>
+                                <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 6, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Preparing notification for</div>
+                                <div style={{ fontWeight: 700, fontSize: 15 }}>{customer.name}</div>
+                                <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 2 }}>
+                                    {customer.phone && <span>📞 {customer.phone} <span style={{ color: 'var(--success)', fontWeight: 600 }}>(Verified ✅)</span> &nbsp;</span>}
+                                    {customer.email && <span>✉️ {customer.email}</span>}
+                                </div>
+                            </div>
+
+                            <InfoField label="Vehicle" value={jobCard.vehicle_registry} />
+                            <InfoField label="Job Card ID" value={jobCard.job_card_id} mono />
+
+                            <div className="form-group">
+                                <label className="form-label">Custom Message (optional)</label>
+                                <textarea
+                                    className="form-input"
+                                    rows={3}
+                                    placeholder="Leave blank to use the default message…"
+                                    value={customMsg}
+                                    onChange={e => setCustomMsg(e.target.value)}
+                                    style={{ resize: 'vertical' }}
+                                />
+                            </div>
+                            {error && <ErrorBanner msg={error} />}
+                        </>
+                    )
                 ) : (
                     /* Success state */
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -960,7 +1304,7 @@ function NotifyModal({ customer, jobCard, onClose }: { customer: VehicleOwner; j
                             <div style={{ fontSize: 40, marginBottom: 8 }}>✅</div>
                             <div style={{ fontWeight: 700, fontSize: 16 }}>Notification Ready</div>
                             <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 4 }}>
-                                Contact the customer using their info below.
+                                Contact the customer using the SMS action below.
                             </div>
                         </div>
 
@@ -969,15 +1313,54 @@ function NotifyModal({ customer, jobCard, onClose }: { customer: VehicleOwner; j
                             <div style={{ fontSize: 13, lineHeight: 1.6, color: 'var(--text-primary)', whiteSpace: 'pre-wrap' }}>{result.message}</div>
                         </div>
 
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                        {result.customer_phone && (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                                {smsSent ? (
+                                    <div style={{
+                                        padding: '12px 14px', background: 'rgba(16,185,129,0.1)',
+                                        border: '1px solid rgba(16,185,129,0.3)', borderRadius: 8,
+                                        color: '#10b981', fontSize: 13, textAlign: 'center', fontWeight: 600
+                                    }}>
+                                        📱 SMS sent successfully directly through the app! ✅
+                                    </div>
+                                ) : (
+                                    <>
+                                        <button
+                                            className="btn btn-primary"
+                                            style={{ width: '100%', padding: '12px', fontSize: '14px', fontWeight: 'bold' }}
+                                            disabled={sendingSms}
+                                            onClick={() => triggerSendSms(result.customer_phone!, result.message)}
+                                        >
+                                            {sendingSms ? (
+                                                <><div className="spinner" style={{ width: 14, height: 14 }} /> Sending SMS…</>
+                                            ) : (
+                                                '💬 Send SMS (Default)'
+                                            )}
+                                        </button>
+                                        {sendSmsError && <ErrorBanner msg={sendSmsError} />}
+                                    </>
+                                )}
+
+                                <div style={{ textAlign: 'center', marginTop: 4 }}>
+                                    <a
+                                        href={`sms:${result.customer_phone}?body=${encodeURIComponent(result.message)}`}
+                                        style={{ fontSize: 12, color: 'var(--text-secondary)', textDecoration: 'underline' }}
+                                    >
+                                        Or launch native messaging client fallback
+                                    </a>
+                                </div>
+                            </div>
+                        )}
+
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 4 }}>
                             {result.customer_phone && (
                                 <a href={`tel:${result.customer_phone}`} style={{ textDecoration: 'none' }}>
-                                    <button className="btn btn-secondary" style={{ width: '100%' }}>📞 Call {result.customer_phone}</button>
+                                    <button className="btn btn-secondary btn-sm" style={{ width: '100%' }}>📞 Call</button>
                                 </a>
                             )}
                             {result.customer_email && (
                                 <a href={`mailto:${result.customer_email}?subject=Vehicle Ready&body=${encodeURIComponent(result.message)}`}>
-                                    <button className="btn btn-secondary" style={{ width: '100%' }}>✉️ Email</button>
+                                    <button className="btn btn-secondary btn-sm" style={{ width: '100%' }}>✉️ Email</button>
                                 </a>
                             )}
                         </div>
@@ -987,7 +1370,7 @@ function NotifyModal({ customer, jobCard, onClose }: { customer: VehicleOwner; j
 
             <div style={{ padding: '16px 24px', borderTop: '1px solid var(--border-subtle)', display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
                 <button className="btn btn-secondary" onClick={onClose}>Close</button>
-                {!result && (
+                {!result && isVerified && (
                     <button
                         className="btn btn-primary"
                         disabled={mutation.isPending}

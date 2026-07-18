@@ -224,6 +224,7 @@ def setup():
     attr_str("vehicle_owners", "name",  size=200, required=True)
     attr_str("vehicle_owners", "phone", size=20,  required=False)
     attr_str("vehicle_owners", "email", size=255, required=False)
+    attr_bool("vehicle_owners", "phone_verified", required=False, default=False)
 
     # ── 6. VEHICLES ─────────────────────────────────────────────────────────
     print("\n[6/7] vehicles")
@@ -234,6 +235,7 @@ def setup():
     attr_str ("vehicles", "brand",         size=100, required=True)    # model
     attr_bool("vehicles", "active_status", required=True, default=True)
     attr_str ("vehicles", "owner_id",      size=36,  required=False)   # → vehicle_owners.$id
+    attr_str ("vehicles", "past_registry_num", size=255, required=False, xarray=True)
     index("vehicles", "idx_registry_unique", "unique", ["registry"])
     index("vehicles", "idx_vin_unique",      "unique", ["vin"])
 

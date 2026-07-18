@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
 import { useShopAuthStore } from '../../hooks/useShopAuth'
 import shopApiClient from '../../../infrastructure/api/shopClient'
+import { capitalizeName } from '../../utils'
 
 
 export default function ShopSettingsPage() {
@@ -51,7 +52,7 @@ export default function ShopSettingsPage() {
 
     const saveShopInfo = (e: React.FormEvent) => {
         e.preventDefault()
-        shopMutation.mutate({ shop_name: shopName, location })
+        shopMutation.mutate({ shop_name: capitalizeName(shopName), location: capitalizeName(location) })
     }
 
     const changePassword = (e: React.FormEvent) => {

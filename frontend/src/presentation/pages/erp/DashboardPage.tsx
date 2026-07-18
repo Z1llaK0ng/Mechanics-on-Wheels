@@ -52,11 +52,7 @@ export default function DashboardPage() {
     }
 
     const handleDownloadApp = () => {
-        setModal({
-            emoji: '🚀',
-            title: 'Coming Soon',
-            message: 'The mobile app download is coming in a future update. Stay tuned!',
-        })
+        navigate('/download-pwa')
     }
 
     return (

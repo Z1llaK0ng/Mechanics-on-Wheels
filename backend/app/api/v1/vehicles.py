@@ -5,7 +5,7 @@ from appwrite.id import ID
 from appwrite.query import Query
 from fastapi import APIRouter, Depends, HTTPException, status, Query as QParam
 
-from app.core.appwrite_client import databases, DB_ID, COL_VEHICLES
+from app.core.appwrite_client import databases, DB_ID, COL_VEHICLES, COL_JOB_CARDS
 from app.core.security import get_current_user
 from app.schemas.vehicle import (
     VehicleCreate, VehicleUpdate, VehicleResponse,
@@ -23,6 +23,7 @@ def _doc_to_response(doc: dict) -> VehicleResponse:
         brand=doc.get("brand", ""),
         active_status=doc.get("active_status", True),
         owner_id=doc.get("owner_id"),
+        past_registry_num=doc.get("past_registry_num", []),
         # Aliases the frontend uses
         make=doc.get("company"),
         model=doc.get("brand"),
@@ -109,6 +110,7 @@ def register_vehicle(
             "brand": vehicle_data.brand,
             "active_status": True,
             "owner_id": vehicle_data.owner_id,
+            "past_registry_num": [],
         }
     )
     return _doc_to_response(doc)
@@ -144,7 +146,46 @@ def update_vehicle(
         raise HTTPException(status_code=404, detail="Vehicle not found")
 
     data = {k: v for k, v in vehicle_update.model_dump().items() if v is not None}
+    
+    old_registry = docs[0]["registry"]
+    new_registry = data.get("registry")
+    vin = docs[0]["vin"]
+    
+    if new_registry and new_registry != old_registry:
+        new_registry = new_registry.strip().upper()
+        data["registry"] = new_registry
+        
+        # Check uniqueness of new registry
+        reg_check = databases.list_documents(
+            DB_ID, COL_VEHICLES, [Query.equal("registry", new_registry)]
+        )
+        if reg_check["total"] > 0:
+            raise HTTPException(status_code=400, detail="Vehicle with this registry already exists")
+            
+        # Update past_registry_num list
+        past_list = docs[0].get("past_registry_num") or []
+        past_list = list(past_list)
+        if old_registry not in past_list:
+            past_list.append(old_registry)
+        data["past_registry_num"] = past_list
+
     doc = databases.update_document(DB_ID, COL_VEHICLES, docs[0]["$id"], data)
+    
+    # If registry changed, update related job cards
+    if new_registry and new_registry != old_registry:
+        try:
+            jc_res = databases.list_documents(
+                DB_ID, COL_JOB_CARDS,
+                queries=[Query.equal("vehicle_vin", vin), Query.limit(100)]
+            )
+            for jc_doc in jc_res["documents"]:
+                databases.update_document(
+                    DB_ID, COL_JOB_CARDS, jc_doc["$id"],
+                    {"vehicle_registry": new_registry}
+                )
+        except Exception as e:
+            print(f"Error updating job cards for vin {vin}: {e}")
+            
     return _doc_to_response(doc)
 
 

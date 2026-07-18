@@ -121,3 +121,11 @@ async def get_current_user(token: str = Depends(oauth2_scheme)) -> dict:
         raise
     except Exception:
         raise credentials_exception
+
+
+def capitalize_name(name: Optional[str]) -> Optional[str]:
+    """Capitalize the first letter of each word in a string."""
+    if not name:
+        return name
+    return " ".join(w[0].upper() + w[1:] if w else "" for w in name.split(" "))
+

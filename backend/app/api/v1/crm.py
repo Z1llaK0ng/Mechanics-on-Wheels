@@ -7,12 +7,15 @@ own linked customers, but a single customer profile is shared.
 
 All routes require a valid shop token (admin OR staff).
 """
+import time
+import requests
 from typing import List, Optional
 
 from appwrite.id import ID
 from appwrite.query import Query
 from fastapi import APIRouter, Depends, HTTPException, status, Query as QParam
 
+from app.config import settings
 from app.core.appwrite_client import (
     databases, DB_ID,
     COL_VEHICLE_OWNERS, COL_VEHICLES, COL_JOB_CARDS,
@@ -23,6 +26,8 @@ from app.schemas.customer import (
     CustomerCreate, CustomerUpdate,
     CustomerResponse, CustomerDetailResponse,
     VehicleOwnerAssign, NotifyRequest, NotifyResponse,
+    SendSmsRequest, SendSmsResponse,
+    OtpSendRequest, OtpVerifyRequest, OtpResponse,
 )
 from app.schemas.vehicle import VehicleCreate, VehicleResponse
 
@@ -38,6 +43,7 @@ def _owner_to_response(doc: dict, vehicle_count: int = 0) -> CustomerResponse:
         phone=doc.get("phone"),
         email=doc.get("email"),
         vehicle_count=vehicle_count,
+        phone_verified=doc.get("phone_verified") or False,
     )
 
 
@@ -49,6 +55,7 @@ def _vehicle_to_response(doc: dict) -> VehicleResponse:
         brand=doc.get("brand", ""),
         active_status=doc.get("active_status", True),
         owner_id=doc.get("owner_id"),
+        past_registry_num=doc.get("past_registry_num", []),
         make=doc.get("company"),
         model=doc.get("brand"),
     )
@@ -278,6 +285,7 @@ def get_customer(
         shop_id=None,
         vehicle_count=len(vehicles),
         vehicles=vehicles,
+        phone_verified=doc.get("phone_verified") or False,
     )
 
 
@@ -414,6 +422,7 @@ def register_crm_vehicle(
             "brand":         payload.brand,
             "active_status": True,
             "owner_id":      payload.owner_id or "",
+            "past_registry_num": [],
         },
     )
     return _vehicle_to_response(doc)
@@ -459,7 +468,8 @@ def assign_vehicle_owner(
                 "company": "—",
                 "brand": "—",
                 "active_status": True,
-                "owner_id": payload.owner_id or ""
+                "owner_id": payload.owner_id or "",
+                "past_registry_num": [],
             }
         )
         return _vehicle_to_response(doc)
@@ -554,3 +564,227 @@ def notify_customer(
         status=jc.get("status", ""),
         message=msg,
     )
+
+
+def format_ghana_phone(phone: str) -> str:
+    """Format phone number to international format (233XXXXXXXXX)."""
+    clean = "".join(c for c in phone if c.isdigit())
+    if clean.startswith("233") and len(clean) >= 12:
+        return clean
+    if clean.startswith("0") and len(clean) == 10:
+        return "233" + clean[1:]
+    if len(clean) == 9:
+        return "233" + clean
+    return clean
+
+
+@router.post("/customers/{owner_id}/send-sms", response_model=SendSmsResponse)
+def send_sms(
+    owner_id: str,
+    payload: SendSmsRequest,
+    current_user: dict = Depends(get_current_shop_user),
+):
+    """
+    Send an SMS notification using Hubtel API, falling back to simulation if credentials are not set.
+    """
+    # Verify customer exists
+    try:
+        databases.get_document(DB_ID, COL_VEHICLE_OWNERS, owner_id)
+    except Exception:
+        raise HTTPException(status_code=404, detail="Customer not found.")
+
+    formatted_phone = format_ghana_phone(payload.phone)
+
+    # Simulation mode check
+    if not settings.HUBTEL_CLIENT_ID or not settings.HUBTEL_CLIENT_SECRET:
+        print(f"[SMS DIRECT (SIMULATION)] Sending SMS to {formatted_phone}: {payload.message}")
+        time.sleep(0.5)
+        return SendSmsResponse(
+            status="sent",
+            phone=payload.phone,
+            message=payload.message
+        )
+
+    # Real Hubtel API call
+    url = "https://smsc.hubtel.com/v1/messages/send"
+    basic_auth = requests.auth.HTTPBasicAuth(settings.HUBTEL_CLIENT_ID, settings.HUBTEL_CLIENT_SECRET)
+    data = {
+        "From": settings.HUBTEL_SENDER_ID or "CarrySpanner",
+        "To": formatted_phone,
+        "Content": payload.message,
+        "Type": "text"
+    }
+
+    try:
+        r = requests.post(url, json=data, auth=basic_auth, timeout=10)
+        if r.status_code not in (200, 201):
+            raise HTTPException(
+                status_code=400,
+                detail=f"Hubtel API failed ({r.status_code}): {r.text}"
+            )
+        return SendSmsResponse(
+            status="sent",
+            phone=payload.phone,
+            message=payload.message
+        )
+    except requests.RequestException as e:
+        raise HTTPException(
+            status_code=502,
+            detail=f"Failed to connect to Hubtel gateway: {e}"
+        )
+
+
+@router.post("/customers/{owner_id}/otp/send", response_model=OtpResponse)
+def send_otp(
+    owner_id: str,
+    payload: OtpSendRequest,
+    current_user: dict = Depends(get_current_shop_user),
+):
+    """
+    Send OTP verification code to customer's phone using Hubtel.
+    """
+    # Verify customer exists
+    try:
+        databases.get_document(DB_ID, COL_VEHICLE_OWNERS, owner_id)
+    except Exception:
+        raise HTTPException(status_code=404, detail="Customer not found.")
+
+    formatted_phone = format_ghana_phone(payload.phone)
+
+    if not settings.HUBTEL_CLIENT_ID or not settings.HUBTEL_CLIENT_SECRET:
+        print(f"[OTP SEND (SIMULATION)] Sending OTP to {formatted_phone}")
+        time.sleep(0.5)
+        return OtpResponse(
+            status="sent",
+            message="OTP sent successfully via simulation mode. Use code 1234 to verify."
+        )
+
+    # Real Hubtel OTP Send
+    url = "https://api-otp.hubtel.com/otp/send"
+    basic_auth = requests.auth.HTTPBasicAuth(settings.HUBTEL_CLIENT_ID, settings.HUBTEL_CLIENT_SECRET)
+    data = {
+        "senderId": settings.HUBTEL_SENDER_ID or "CarrySpanner",
+        "phoneNumber": formatted_phone,
+        "expiry": 5,
+        "length": 4,
+        "prefix": "Your CarrySpanner verification code is ",
+        "suffix": "."
+    }
+
+    try:
+        r = requests.post(url, json=data, auth=basic_auth, timeout=10)
+        if r.status_code not in (200, 201):
+            raise HTTPException(
+                status_code=400,
+                detail=f"Hubtel OTP Send failed ({r.status_code}): {r.text}"
+            )
+        return OtpResponse(
+            status="sent",
+            message="OTP code sent successfully to customer's phone."
+        )
+    except requests.RequestException as e:
+        raise HTTPException(
+            status_code=502,
+            detail=f"Failed to connect to Hubtel OTP gateway: {e}"
+        )
+
+
+@router.post("/customers/{owner_id}/otp/verify", response_model=OtpResponse)
+def verify_otp(
+    owner_id: str,
+    payload: OtpVerifyRequest,
+    current_user: dict = Depends(get_current_shop_user),
+):
+    """
+    Verify customer OTP and mark their phone number as verified in database.
+    """
+    # Verify customer exists
+    try:
+        databases.get_document(DB_ID, COL_VEHICLE_OWNERS, owner_id)
+    except Exception:
+        raise HTTPException(status_code=404, detail="Customer not found.")
+
+    formatted_phone = format_ghana_phone(payload.phone)
+
+    if not settings.HUBTEL_CLIENT_ID or not settings.HUBTEL_CLIENT_SECRET:
+        if payload.code == "1234":
+            # Mark verified in database
+            databases.update_document(
+                DB_ID, COL_VEHICLE_OWNERS, owner_id,
+                data={"phone_verified": True}
+            )
+            return OtpResponse(status="verified", message="Phone number verified successfully!")
+        else:
+            raise HTTPException(status_code=400, detail="Invalid verification code.")
+
+    # Real Hubtel OTP Verify
+    url = "https://api-otp.hubtel.com/otp/verify"
+    basic_auth = requests.auth.HTTPBasicAuth(settings.HUBTEL_CLIENT_ID, settings.HUBTEL_CLIENT_SECRET)
+    data = {
+        "phoneNumber": formatted_phone,
+        "code": payload.code
+    }
+
+    try:
+        r = requests.post(url, json=data, auth=basic_auth, timeout=10)
+        if r.status_code not in (200, 201):
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid verification code or Hubtel error: {r.text}"
+            )
+        
+        # Mark verified in database
+        databases.update_document(
+            DB_ID, COL_VEHICLE_OWNERS, owner_id,
+            data={"phone_verified": True}
+        )
+        return OtpResponse(status="verified", message="Phone number verified successfully!")
+    except requests.RequestException as e:
+        raise HTTPException(
+            status_code=502,
+            detail=f"Failed to connect to Hubtel OTP gateway: {e}"
+        )
+
+
+@router.post("/customers/{owner_id}/otp/resend", response_model=OtpResponse)
+def resend_otp(
+    owner_id: str,
+    payload: OtpSendRequest,
+    current_user: dict = Depends(get_current_shop_user),
+):
+    """
+    Resend OTP to customer's phone.
+    """
+    # Verify customer exists
+    try:
+        databases.get_document(DB_ID, COL_VEHICLE_OWNERS, owner_id)
+    except Exception:
+        raise HTTPException(status_code=404, detail="Customer not found.")
+
+    formatted_phone = format_ghana_phone(payload.phone)
+
+    if not settings.HUBTEL_CLIENT_ID or not settings.HUBTEL_CLIENT_SECRET:
+        print(f"[OTP RESEND (SIMULATION)] Resending OTP to {formatted_phone}")
+        time.sleep(0.5)
+        return OtpResponse(status="sent", message="OTP resent successfully via simulation.")
+
+    # Real Hubtel OTP Resend
+    url = "https://api-otp.hubtel.com/otp/resend"
+    basic_auth = requests.auth.HTTPBasicAuth(settings.HUBTEL_CLIENT_ID, settings.HUBTEL_CLIENT_SECRET)
+    data = {
+        "phoneNumber": formatted_phone
+    }
+
+    try:
+        r = requests.post(url, json=data, auth=basic_auth, timeout=10)
+        if r.status_code not in (200, 201):
+            raise HTTPException(
+                status_code=400,
+                detail=f"Hubtel OTP Resend failed ({r.status_code}): {r.text}"
+            )
+        return OtpResponse(status="sent", message="OTP code resent successfully.")
+    except requests.RequestException as e:
+        raise HTTPException(
+            status_code=502,
+            detail=f"Failed to connect to Hubtel OTP gateway: {e}"
+        )

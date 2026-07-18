@@ -1,8 +1,16 @@
-﻿import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../hooks/useAuth'
 
 export default function LoginPage() {
-    const { loginMutation } = useAuth()
+    const { loginMutation, isAuthenticated } = useAuth()
+    const navigate = useNavigate()
+
+    useEffect(() => {
+        if (isAuthenticated) {
+            navigate('/dashboard', { replace: true })
+        }
+    }, [isAuthenticated, navigate])
     const [email, setEmail] = useState('')
     const [password, setPassword] = useState('')
 

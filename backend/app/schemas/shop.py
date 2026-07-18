@@ -1,5 +1,6 @@
 from pydantic import BaseModel, EmailStr, field_validator
 from typing import List
+from app.core.security import capitalize_name
 
 
 # ── Shop Registration ─────────────────────────────────────────────────────────
@@ -22,7 +23,12 @@ class ShopCreate(BaseModel):
     def shop_name_not_empty(cls, v: str) -> str:
         if not v.strip():
             raise ValueError("Shop name cannot be empty")
-        return v.strip()
+        return capitalize_name(v.strip())
+
+    @field_validator("location")
+    @classmethod
+    def location_capitalize(cls, v: str) -> str:
+        return capitalize_name(v.strip())
 
 
 # ── Shop Login ────────────────────────────────────────────────────────────────

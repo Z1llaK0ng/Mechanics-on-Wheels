@@ -85,6 +85,7 @@ export interface Vehicle {
     company?: string
     brand?: string
     active_status?: boolean
+    past_registry_num?: string[]
 }
 
 // ─── Vehicle Owner (CRM) ───────────────────────────────────────────────────
@@ -95,6 +96,7 @@ export interface VehicleOwner {
     phone?: string
     email?: string
     vehicle_count: number
+    phone_verified?: boolean
 }
 
 export interface VehicleOwnerDetail extends VehicleOwner {

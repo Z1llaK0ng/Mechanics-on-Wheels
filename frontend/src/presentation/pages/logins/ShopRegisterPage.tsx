@@ -1,6 +1,7 @@
-﻿import { useState } from 'react'
+import { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { useShopRegister } from '../../hooks/useShopAuth'
+import { capitalizeName } from '../../utils'
 
 export default function ShopRegisterPage() {
     const navigate = useNavigate()
@@ -21,7 +22,12 @@ export default function ShopRegisterPage() {
             return
         }
         registerMutation.mutate(
-            { shop_name: form.shop_name, location: form.location, email: form.email, password: form.password },
+            {
+                shop_name: capitalizeName(form.shop_name),
+                location: capitalizeName(form.location),
+                email: form.email,
+                password: form.password
+            },
             {
                 onSuccess: () => navigate('/shop/login', { state: { registered: true } }),
                 onError: (err: unknown) => {

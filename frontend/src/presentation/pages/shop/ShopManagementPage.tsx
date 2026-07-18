@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useShopAuthStore } from '../../hooks/useShopAuth'
 import shopApiClient from '../../../infrastructure/api/shopClient'
+import { capitalizeName } from '../../utils'
 
 type StaffRole = 'technician' | 'staff'
 
@@ -369,7 +370,7 @@ function PersonTable({
         setAdding(true)
         setAddError('')
         try {
-            await onAdd(form.name, form.email, form.password)
+            await onAdd(capitalizeName(form.name), form.email, form.password)
             setForm({ name: '', email: '', password: '' })
             setShowAdd(false)
         } catch (err: any) {

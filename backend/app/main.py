@@ -15,14 +15,11 @@ app = FastAPI(
 # CORS middleware
 # NOTE: allow_origins=["*"] + allow_credentials=True is rejected by browsers.
 # List explicit origins so the Authorization header is forwarded correctly.
+origins = [origin.strip() for origin in settings.CORS_ORIGINS.split(",") if origin.strip()]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",   # Vite dev server
-        "http://localhost:4173",   # Vite preview
-        "http://127.0.0.1:5173",
-        "http://127.0.0.1:4173",
-    ],
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

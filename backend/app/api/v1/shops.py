@@ -4,11 +4,11 @@ from typing import Optional, List
 from appwrite.id import ID
 from appwrite.query import Query
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 from app.core.appwrite_client import databases, DB_ID, COL_SHOP, COL_MECHANICS, COL_MODULE_GROUPS
 from app.core.shop_security import get_current_shop_admin, get_current_shop_user
-from app.core.security import get_password_hash, verify_password
+from app.core.security import get_password_hash, verify_password, capitalize_name
 from app.schemas.mechanic import MechanicResponse
 
 
@@ -36,12 +36,24 @@ class ShopUpdate(BaseModel):
     shop_name: Optional[str] = None
     location: Optional[str] = None
 
+    @field_validator("shop_name", "location")
+    @classmethod
+    def capitalize_shop_fields(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None:
+            return capitalize_name(v.strip())
+        return v
+
 
 class MechanicCreateForShop(BaseModel):
     full_name: str
     email: str
     password: str
     staffrole: Optional[str] = "technician"
+
+    @field_validator("full_name")
+    @classmethod
+    def capitalize_full_name(cls, v: str) -> str:
+        return capitalize_name(v.strip())
 
 
 @router.patch("/{shop_id}", status_code=status.HTTP_200_OK)

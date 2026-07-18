@@ -723,6 +723,46 @@ def backfill_job_cards_shop_id():
     print(f"\n  ✅ backfill_job_cards_shop_id done — {updated} updated, {skipped} skipped/already OK.")
 
 
+def add_past_registry_num():
+    print("\nAdding past_registry_num to vehicles collection...")
+    try:
+        db.create_string_attribute(
+            database_id=DB_ID,
+            collection_id="vehicles",
+            key="past_registry_num",
+            size=255,
+            required=False,
+            default=None,
+            array=True
+        )
+        print("  ✅ Attribute 'past_registry_num' created as an array of strings.")
+    except Exception as e:
+        if "already exists" in str(e).lower() or "409" in str(e):
+            print("  ℹ️  Attribute 'past_registry_num' already exists — skipped.")
+        else:
+            print(f"  ⚠️  Error creating 'past_registry_num': {e}")
+    time.sleep(0.3)
+
+
+def add_phone_verified_to_owners():
+    print("\nAdding phone_verified to vehicle_owners collection...")
+    try:
+        db.create_boolean_attribute(
+            database_id=DB_ID,
+            collection_id="vehicle_owners",
+            key="phone_verified",
+            required=False,
+            default=False
+        )
+        print("  ✅ Attribute 'phone_verified' created as a boolean.")
+    except Exception as e:
+        if "already exists" in str(e).lower() or "409" in str(e):
+            print("  ℹ️  Attribute 'phone_verified' already exists — skipped.")
+        else:
+            print(f"  ⚠️  Error creating 'phone_verified': {e}")
+    time.sleep(0.3)
+
+
 # ════════════════════════════════════════════════════════════════════════════
 # Entry point
 # ════════════════════════════════════════════════════════════════════════════
@@ -740,6 +780,8 @@ MIGRATIONS = {
     "add_is_global_to_job_cards":    add_is_global_to_job_cards,
     "create_global_db":              create_global_db,
     "backfill_job_cards_shop_id":    backfill_job_cards_shop_id,
+    "add_past_registry_num":         add_past_registry_num,
+    "add_phone_verified_to_owners":  add_phone_verified_to_owners,
 }
 
 if __name__ == "__main__":
