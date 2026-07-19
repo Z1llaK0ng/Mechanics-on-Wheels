@@ -9,11 +9,11 @@ services:
       - key: APPWRITE_ENDPOINT
         value: https://fra.cloud.appwrite.io/v1
       - key: APPWRITE_PROJECT_ID
-        sync: false
+        sync: "699e2b1100328d076862"
       - key: APPWRITE_API_KEY
-        sync: false
+        sync: standard_f0f523c352d7f1d9719f3a82f17b9053ce550894afccc1d8879f31e7737163e502c70c7fda4757b3e80cb5cea14c0c4fbc82ab2b0f0924c959f348270e0f75abcc2d3c1ac60e63784f6593b99f15e395e17df4ef57590bdca304389fe4b897889876dde72ece383f7ffc514146dff7bd30082ef8bfb9b1df81ec3582c3c0b2ae
       - key: APPWRITE_DB_ID
-        sync: false
+        sync: 699e2b3b00170fd7efb1
       - key: SECRET_KEY
         generateValue: true
       - key: ALGORITHM
@@ -25,7 +25,7 @@ services:
       - key: DEBUG
         value: "false"
       - key: CORS_ORIGINS
-        sync: false
+        value: http://localhost:5173, https://mechanics-on-wheels.pages.dev/
       - key: HUBTEL_CLIENT_ID
         sync: false
       - key: HUBTEL_CLIENT_SECRET
