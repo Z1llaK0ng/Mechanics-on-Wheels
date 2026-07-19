@@ -30,9 +30,9 @@ app.add_middleware(
 async def startup():
     """Verify Appwrite connectivity on startup."""
     try:
-        from app.core.appwrite_client import databases, DB_ID
+        from app.core.appwrite_client import databases, DB_ID, COL_SHOP
         from appwrite.query import Query
-        databases.list_documents(database_id=DB_ID, collection_id="shops", queries=[Query.limit(1)])
+        databases.list_documents(database_id=DB_ID, collection_id=COL_SHOP, queries=[Query.limit(1)])
         print(f"[OK] Appwrite connected — database '{DB_ID}' is ready")
     except Exception as e:
         print(f"[WARN] Appwrite health check failed: {e}")
