@@ -15,7 +15,7 @@ app = FastAPI(
 # CORS middleware
 # NOTE: allow_origins=["*"] + allow_credentials=True is rejected by browsers.
 # List explicit origins so the Authorization header is forwarded correctly.
-origins = [origin.strip() for origin in settings.CORS_ORIGINS.split(",") if origin.strip()]
+origins = [origin.strip().rstrip('/') for origin in settings.CORS_ORIGINS.split(",") if origin.strip()]
 
 app.add_middleware(
     CORSMiddleware,

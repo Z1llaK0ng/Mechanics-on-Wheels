@@ -25,7 +25,7 @@ services:
       - key: DEBUG
         value: "false"
       - key: CORS_ORIGINS
-        value: http://localhost:5173, https://mechanics-on-wheels.pages.dev/
+        value: http://localhost:5173,https://mechanics-on-wheels.pages.dev
       - key: HUBTEL_CLIENT_ID
         sync: false
       - key: HUBTEL_CLIENT_SECRET
