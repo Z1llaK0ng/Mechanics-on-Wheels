@@ -1,7 +1,15 @@
 import axios from 'axios'
 import { useShopAuthStore } from '../../presentation/hooks/useShopAuth'
 
-const BASE_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:8000/api/v1'
+const getBaseUrl = () => {
+    let url = (import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1').trim().replace(/\/+$/, '')
+    if (!url.endsWith('/api/v1')) {
+        url = `${url}/api/v1`
+    }
+    return url
+}
+
+const BASE_URL = getBaseUrl()
 
 const shopApiClient = axios.create({
     baseURL: BASE_URL,

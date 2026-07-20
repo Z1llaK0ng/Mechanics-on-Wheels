@@ -1,4 +1,4 @@
-﻿import { defineConfig } from 'vite'
+import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 import { fileURLToPath } from 'url'
@@ -45,7 +45,7 @@ export default defineConfig({
                 globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
                 runtimeCaching: [
                     {
-                        urlPattern: /^http:\/\/localhost:8000\/api\/v1\/job-cards/,
+                        urlPattern: /\/api\/v1\/job-cards/,
                         handler: 'NetworkFirst',
                         options: {
                             cacheName: 'job-cards-cache',
@@ -54,7 +54,7 @@ export default defineConfig({
                         }
                     },
                     {
-                        urlPattern: /^http:\/\/localhost:8000\/api\/v1\/vehicles/,
+                        urlPattern: /\/api\/v1\/vehicles/,
                         handler: 'NetworkFirst',
                         options: {
                             cacheName: 'vehicles-cache',
@@ -63,7 +63,7 @@ export default defineConfig({
                         }
                     },
                     {
-                        urlPattern: /^http:\/\/localhost:8000\/api\/v1\/subscriptions/,
+                        urlPattern: /\/api\/v1\/subscriptions/,
                         handler: 'NetworkFirst',
                         options: {
                             cacheName: 'subscriptions-cache',
