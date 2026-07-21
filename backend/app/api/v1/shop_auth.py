@@ -45,6 +45,30 @@ def _subscribed_module_ids(shop_id: str) -> list[str]:
         return []
 
 
+@router.get("/debug-auth")
+def debug_auth(email: str = "admin@chem1c.com"):
+    try:
+        res = databases.list_documents(
+            database_id=DB_ID,
+            collection_id=COL_SHOP,
+            queries=[Query.equal("email", email.strip())]
+        )
+        docs = get_docs(res)
+        if not docs:
+            return {"status": "not_found", "docs_count": 0}
+        shop = docs[0]
+        h = get_field(shop, "hashed_password", "")
+        verified = verify_password("chem1c22", h)
+        return {
+            "status": "found",
+            "shop_name": get_field(shop, "shop_name", ""),
+            "hash_len": len(h),
+            "hash_starts_with": h[:10] if h else "",
+            "verified_chem1c22": verified
+        }
+    except Exception as e:
+        return {"status": "error", "error": str(e)}
+
 
 # ── Register shop ─────────────────────────────────────────────────────────────
 

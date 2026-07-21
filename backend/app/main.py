@@ -60,7 +60,7 @@ async def startup():
 
 @app.get("/")
 def root():
-    return {"message": "Welcome to CarrySpanner API", "version": "1.0.3", "status": "operational"}
+    return {"message": "Welcome to CarrySpanner API", "version": "1.0.4", "status": "operational"}
 
 
 @app.get("/health")
