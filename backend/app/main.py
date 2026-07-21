@@ -17,6 +17,9 @@ app = FastAPI(
 # List explicit origins so the Authorization header is forwarded correctly.
 origins = [origin.strip().rstrip('/') for origin in settings.CORS_ORIGINS.split(",") if origin.strip()]
 
+from fastapi import Request
+from fastapi.responses import JSONResponse
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
@@ -25,6 +28,21 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    print(f"[ERROR] Global exception on {request.url.path}: {exc}")
+    response = JSONResponse(
+        status_code=500,
+        content={"detail": str(exc) if settings.DEBUG else "Internal Server Error"}
+    )
+    origin = request.headers.get("origin")
+    if origin:
+        response.headers["Access-Control-Allow-Origin"] = origin
+        response.headers["Access-Control-Allow-Credentials"] = "true"
+    return response
+
 
 
 @app.on_event("startup")

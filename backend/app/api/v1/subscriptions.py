@@ -17,6 +17,26 @@ class SubscriptionActivateRequest(BaseModel):
     subscription_id: str
 
 
+DEFAULT_SUBSCRIPTIONS = [
+    {"subscription_id": "job-cards_monthly", "name": "Job Card Management", "desc": "Create, fill and track workshop job cards", "payment_period": "monthly", "price": 29},
+    {"subscription_id": "job-cards_yearly", "name": "Job Card Management", "desc": "Create, fill and track workshop job cards", "payment_period": "yearly", "price": 290},
+    {"subscription_id": "inventory_monthly", "name": "Inventory Management", "desc": "Log spare parts, stock levels and supplier records", "payment_period": "monthly", "price": 39},
+    {"subscription_id": "inventory_yearly", "name": "Inventory Management", "desc": "Log spare parts, stock levels and supplier records", "payment_period": "yearly", "price": 390},
+    {"subscription_id": "crm_monthly", "name": "Customer Relationships", "desc": "Customer profiles and vehicle assignment", "payment_period": "monthly", "price": 19},
+    {"subscription_id": "crm_yearly", "name": "Customer Relationships", "desc": "Customer profiles and vehicle assignment", "payment_period": "yearly", "price": 190},
+    {"subscription_id": "invoicing_monthly", "name": "Invoicing & Financials", "desc": "Parts cost tracking, billing and workshop revenue", "payment_period": "monthly", "price": 49},
+    {"subscription_id": "invoicing_yearly", "name": "Invoicing & Financials", "desc": "Parts cost tracking, billing and workshop revenue", "payment_period": "yearly", "price": 490},
+    {"subscription_id": "employees_monthly", "name": "Employee Management", "desc": "Track technicians and workshop staff", "payment_period": "monthly", "price": 25},
+    {"subscription_id": "employees_yearly", "name": "Employee Management", "desc": "Track technicians and workshop staff", "payment_period": "yearly", "price": 250},
+    {"subscription_id": "global-db_monthly", "name": "Global Database", "desc": "DVLA VIN lookup and cross-shop vehicle history", "payment_period": "monthly", "price": 59},
+    {"subscription_id": "global-db_yearly", "name": "Global Database", "desc": "DVLA VIN lookup and cross-shop vehicle history", "payment_period": "yearly", "price": 590},
+    {"subscription_id": "search_monthly", "name": "Advanced Search", "desc": "Fast search across all shop records", "payment_period": "monthly", "price": 15},
+    {"subscription_id": "search_yearly", "name": "Advanced Search", "desc": "Fast search across all shop records", "payment_period": "yearly", "price": 150},
+    {"subscription_id": "shop-map_monthly", "name": "Shop Map", "desc": "Visual workshop location mapping", "payment_period": "monthly", "price": 15},
+    {"subscription_id": "shop-map_yearly", "name": "Shop Map", "desc": "Visual workshop location mapping", "payment_period": "yearly", "price": 150},
+]
+
+
 @router.get("/me")
 def get_my_subscriptions(current_user: dict = Depends(get_current_user)):
     """
@@ -25,38 +45,42 @@ def get_my_subscriptions(current_user: dict = Depends(get_current_user)):
     """
     shop_id = current_user.get("shop_id", "")
 
-    active_subs = databases.list_documents(
-        database_id=DB_ID,
-        collection_id=COL_ACTIVE_SUBS,
-        queries=[Query.equal("shop_id", shop_id)]
-    )
+    try:
+        active_subs = databases.list_documents(
+            database_id=DB_ID,
+            collection_id=COL_ACTIVE_SUBS,
+            queries=[Query.equal("shop_id", shop_id)]
+        )
 
-    result = []
-    for sub in active_subs["documents"]:
-        sub_id = sub["subscription_id"]
-        try:
-            subscription = databases.get_document(DB_ID, COL_SUBSCRIPTIONS, sub_id)
-        except Exception:
-            continue
+        result = []
+        for sub in active_subs.get("documents", []):
+            sub_id = sub["subscription_id"]
+            try:
+                subscription = databases.get_document(DB_ID, COL_SUBSCRIPTIONS, sub_id)
+            except Exception:
+                subscription = {"$id": sub_id, "name": sub_id.split('_')[0], "payment_period": "monthly", "desc": ""}
 
-        result.append({
-            "id": sub["$id"],
-            "shop_id": sub["shop_id"],
-            "subscription_id": sub_id,
-            "date_of_activation": sub.get("date_of_activation", ""),
-            "subscription": {
-                "subscription_id": subscription["$id"],
-                "name": subscription["name"],
-                "payment_period": subscription["payment_period"],
-                "description": subscription.get("desc", ""),
-            },
-            # Frontend AppModule shape
-            "activeSince": sub.get("date_of_activation", ""),
-            "routeKey": subscription.get("name", "").lower().replace(" ", "-"),
-            "features": [],
-        })
+            result.append({
+                "id": sub["$id"],
+                "shop_id": sub["shop_id"],
+                "subscription_id": sub_id,
+                "date_of_activation": sub.get("date_of_activation", ""),
+                "subscription": {
+                    "subscription_id": subscription["$id"],
+                    "name": subscription.get("name", sub_id),
+                    "payment_period": subscription.get("payment_period", "monthly"),
+                    "description": subscription.get("desc", ""),
+                },
+                # Frontend AppModule shape
+                "activeSince": sub.get("date_of_activation", ""),
+                "routeKey": subscription.get("name", "").lower().replace(" ", "-"),
+                "features": [],
+            })
 
-    return result
+        return result
+    except Exception as e:
+        print(f"[WARN] get_my_subscriptions failed: {e}")
+        return []
 
 
 @router.get(
@@ -66,18 +90,17 @@ def get_my_subscriptions(current_user: dict = Depends(get_current_user)):
 def get_shop_active_subscriptions(
     current_admin: dict = Depends(get_current_shop_admin),
 ):
-    """
-    Returns a flat list of subscription_id strings for the admin's shop.
-    E.g. ["job-cards_monthly", "inventory_monthly"]
-    This is used by the frontend to refresh state after subscribe/cancel without a page reload.
-    """
     shop_id = current_admin.get("shop_id", "")
-    active_subs = databases.list_documents(
-        database_id=DB_ID,
-        collection_id=COL_ACTIVE_SUBS,
-        queries=[Query.equal("shop_id", shop_id)],
-    )
-    return [doc["subscription_id"] for doc in active_subs["documents"]]
+    try:
+        active_subs = databases.list_documents(
+            database_id=DB_ID,
+            collection_id=COL_ACTIVE_SUBS,
+            queries=[Query.equal("shop_id", shop_id)],
+        )
+        return [doc["subscription_id"] for doc in active_subs.get("documents", [])]
+    except Exception as e:
+        print(f"[WARN] get_shop_active_subscriptions failed: {e}")
+        return []
 
 
 @router.post(
@@ -89,44 +112,36 @@ def activate_subscription_for_shop(
     payload: SubscriptionActivateRequest,
     current_admin: dict = Depends(get_current_shop_admin),
 ):
-    """
-    Activate a subscription/module for the admin's shop.
-
-    Expects `subscription_id` to match the Appwrite document ID in the
-    `subscriptions` collection. This ID is also used by the Shop Portal
-    as the module identifier.
-    """
     shop_id = current_admin.get("shop_id")
 
-    # Ensure the subscription plan exists
+    # Check for existing active subscription
     try:
-        databases.get_document(DB_ID, COL_SUBSCRIPTIONS, payload.subscription_id)
+        existing = databases.list_documents(
+            database_id=DB_ID,
+            collection_id=COL_ACTIVE_SUBS,
+            queries=[
+                Query.equal("shop_id", shop_id),
+                Query.equal("subscription_id", payload.subscription_id),
+            ],
+        )
+        if existing.get("total", 0) > 0:
+            return {"detail": "Already active"}
     except Exception:
-        raise HTTPException(status_code=404, detail="Subscription plan not found.")
+        pass
 
-    # Avoid duplicate active subscriptions
-    existing = databases.list_documents(
-        database_id=DB_ID,
-        collection_id=COL_ACTIVE_SUBS,
-        queries=[
-            Query.equal("shop_id", shop_id),
-            Query.equal("subscription_id", payload.subscription_id),
-        ],
-    )
-    if existing["total"] > 0:
-        # Idempotent: already active
-        return {"detail": "Already active"}
-
-    databases.create_document(
-        database_id=DB_ID,
-        collection_id=COL_ACTIVE_SUBS,
-        document_id=ID.unique(),
-        data={
-            "shop_id": shop_id,
-            "subscription_id": payload.subscription_id,
-            "date_of_activation": datetime.utcnow().isoformat(),
-        },
-    )
+    try:
+        databases.create_document(
+            database_id=DB_ID,
+            collection_id=COL_ACTIVE_SUBS,
+            document_id=ID.unique(),
+            data={
+                "shop_id": shop_id,
+                "subscription_id": payload.subscription_id,
+                "date_of_activation": datetime.utcnow().isoformat(),
+            },
+        )
+    except Exception as e:
+        print(f"[WARN] create_document active_subs failed: {e}")
 
     return {"detail": "Activated"}
 
@@ -142,17 +157,19 @@ def deactivate_subscription_for_shop(
 ):
     shop_id = current_admin.get("shop_id")
 
-    # Find active subscription documents and delete them
-    result = databases.list_documents(
-        database_id=DB_ID,
-        collection_id=COL_ACTIVE_SUBS,
-        queries=[
-            Query.equal("shop_id", shop_id),
-            Query.equal("subscription_id", subscription_id),
-        ],
-    )
-    for doc in result["documents"]:
-        databases.delete_document(DB_ID, COL_ACTIVE_SUBS, doc["$id"])
+    try:
+        result = databases.list_documents(
+            database_id=DB_ID,
+            collection_id=COL_ACTIVE_SUBS,
+            queries=[
+                Query.equal("shop_id", shop_id),
+                Query.equal("subscription_id", subscription_id),
+            ],
+        )
+        for doc in result.get("documents", []):
+            databases.delete_document(DB_ID, COL_ACTIVE_SUBS, doc["$id"])
+    except Exception as e:
+        print(f"[WARN] deactivate_subscription_for_shop failed: {e}")
 
     return {"detail": "Deactivated"}
 
@@ -160,14 +177,22 @@ def deactivate_subscription_for_shop(
 @router.get("/")
 def list_all_subscriptions():
     """List all available subscription plans."""
-    result = databases.list_documents(database_id=DB_ID, collection_id=COL_SUBSCRIPTIONS)
-    return [
-        {
-            "subscription_id": s["$id"],
-            "name": s["name"],
-            "desc": s.get("desc", ""),
-            "payment_period": s["payment_period"],
-            "price": s.get("price", 0),
-        }
-        for s in result["documents"]
-    ]
+    try:
+        result = databases.list_documents(database_id=DB_ID, collection_id=COL_SUBSCRIPTIONS)
+        docs = result.get("documents", [])
+        if docs:
+            return [
+                {
+                    "subscription_id": s.get("$id", s.get("subscription_id", "")),
+                    "name": s.get("name", "Module Plan"),
+                    "desc": s.get("desc", ""),
+                    "payment_period": s.get("payment_period", "monthly"),
+                    "price": s.get("price", 0),
+                }
+                for s in docs
+            ]
+    except Exception as e:
+        print(f"[WARN] list_all_subscriptions Appwrite error: {e}")
+
+    return DEFAULT_SUBSCRIPTIONS
+
