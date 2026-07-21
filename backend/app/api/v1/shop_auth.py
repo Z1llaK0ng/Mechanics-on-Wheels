@@ -256,6 +256,8 @@ def shop_login(
 
         else:
             raise HTTPException(status_code=400, detail="scope must be 'admin' or 'mechanic'.")
+    except HTTPException:
+        raise
     except Exception as e:
         print(f"[ERROR] Unexpected login exception: {e}")
         raise HTTPException(
