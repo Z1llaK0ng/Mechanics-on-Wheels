@@ -25,26 +25,30 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.API_V1_PREFIX}/auth/lo
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     if not plain_password or not hashed_password:
+        print("[WARN] verify_password missing plain or hashed password")
         return False
     pw_bytes = plain_password.encode('utf-8')[:72]
     hash_bytes = hashed_password.encode('utf-8')
     try:
-        return bcrypt.checkpw(pw_bytes, hash_bytes)
+        res = bcrypt.checkpw(pw_bytes, hash_bytes)
+        print(f"[DEBUG] bcrypt.checkpw direct result: {res}")
+        return res
     except ValueError as e:
-        # Passlib-generated hashes may have non-zero trailing bits in 22nd salt char.
-        # Normalize the 22nd salt char to avoid 'ValueError: Invalid salt' in pyca/bcrypt.
+        print(f"[DEBUG] bcrypt.checkpw ValueError: {e} | hash={hashed_password}")
         if "Invalid salt" in str(e) and len(hashed_password) >= 60 and (hashed_password.startswith("$2a$") or hashed_password.startswith("$2b$") or hashed_password.startswith("$2y$")):
             try:
                 c22 = hashed_password[28]
                 if c22 in _BCRYPT_B64:
                     fixed_c22 = _BCRYPT_B64[_BCRYPT_B64.index(c22) & 0x30]
                     fixed_hash = hashed_password[:28] + fixed_c22 + hashed_password[29:]
-                    return bcrypt.checkpw(pw_bytes, fixed_hash.encode('utf-8'))
-            except Exception:
-                pass
+                    res_fixed = bcrypt.checkpw(pw_bytes, fixed_hash.encode('utf-8'))
+                    print(f"[DEBUG] bcrypt.checkpw fixed salt result: {res_fixed}")
+                    return res_fixed
+            except Exception as ex:
+                print(f"[DEBUG] Salt fix exception: {ex}")
         return False
     except Exception as e:
-        print(f"[WARN] verify_password error: {e}")
+        print(f"[WARN] verify_password unexpected error: {e}")
         return False
 
 
