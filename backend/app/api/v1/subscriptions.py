@@ -6,7 +6,10 @@ from appwrite.query import Query
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 
-from app.core.appwrite_client import databases, DB_ID, COL_ACTIVE_SUBS, COL_SUBSCRIPTIONS
+from app.core.appwrite_client import (
+    databases, DB_ID, COL_ACTIVE_SUBS, COL_SUBSCRIPTIONS,
+    get_docs, get_total, get_field
+)
 from app.core.security import get_current_user
 from app.core.shop_security import get_current_shop_admin
 
@@ -53,27 +56,30 @@ def get_my_subscriptions(current_user: dict = Depends(get_current_user)):
         )
 
         result = []
-        for sub in active_subs.get("documents", []):
-            sub_id = sub["subscription_id"]
+        for sub in get_docs(active_subs):
+            sub_id = get_field(sub, "subscription_id")
+            doc_id = get_field(sub, "$id") or get_field(sub, "id", "")
+            activation_date = get_field(sub, "date_of_activation", "")
             try:
                 subscription = databases.get_document(DB_ID, COL_SUBSCRIPTIONS, sub_id)
             except Exception:
                 subscription = {"$id": sub_id, "name": sub_id.split('_')[0], "payment_period": "monthly", "desc": ""}
 
+            sub_name = get_field(subscription, "name", sub_id)
             result.append({
-                "id": sub["$id"],
-                "shop_id": sub["shop_id"],
+                "id": doc_id,
+                "shop_id": get_field(sub, "shop_id", shop_id),
                 "subscription_id": sub_id,
-                "date_of_activation": sub.get("date_of_activation", ""),
+                "date_of_activation": activation_date,
                 "subscription": {
-                    "subscription_id": subscription["$id"],
-                    "name": subscription.get("name", sub_id),
-                    "payment_period": subscription.get("payment_period", "monthly"),
-                    "description": subscription.get("desc", ""),
+                    "subscription_id": get_field(subscription, "$id") or sub_id,
+                    "name": sub_name,
+                    "payment_period": get_field(subscription, "payment_period", "monthly"),
+                    "description": get_field(subscription, "desc", ""),
                 },
                 # Frontend AppModule shape
-                "activeSince": sub.get("date_of_activation", ""),
-                "routeKey": subscription.get("name", "").lower().replace(" ", "-"),
+                "activeSince": activation_date,
+                "routeKey": sub_name.lower().replace(" ", "-"),
                 "features": [],
             })
 
@@ -97,7 +103,7 @@ def get_shop_active_subscriptions(
             collection_id=COL_ACTIVE_SUBS,
             queries=[Query.equal("shop_id", shop_id)],
         )
-        return [doc["subscription_id"] for doc in active_subs.get("documents", [])]
+        return [get_field(doc, "subscription_id") for doc in get_docs(active_subs) if get_field(doc, "subscription_id")]
     except Exception as e:
         print(f"[WARN] get_shop_active_subscriptions failed: {e}")
         return []
@@ -124,7 +130,7 @@ def activate_subscription_for_shop(
                 Query.equal("subscription_id", payload.subscription_id),
             ],
         )
-        if existing.get("total", 0) > 0:
+        if get_total(existing) > 0:
             return {"detail": "Already active"}
     except Exception:
         pass
@@ -166,8 +172,10 @@ def deactivate_subscription_for_shop(
                 Query.equal("subscription_id", subscription_id),
             ],
         )
-        for doc in result.get("documents", []):
-            databases.delete_document(DB_ID, COL_ACTIVE_SUBS, doc["$id"])
+        for doc in get_docs(result):
+            doc_id = get_field(doc, "$id") or get_field(doc, "id")
+            if doc_id:
+                databases.delete_document(DB_ID, COL_ACTIVE_SUBS, doc_id)
     except Exception as e:
         print(f"[WARN] deactivate_subscription_for_shop failed: {e}")
 
@@ -179,15 +187,15 @@ def list_all_subscriptions():
     """List all available subscription plans."""
     try:
         result = databases.list_documents(database_id=DB_ID, collection_id=COL_SUBSCRIPTIONS)
-        docs = result.get("documents", [])
+        docs = get_docs(result)
         if docs:
             return [
                 {
-                    "subscription_id": s.get("$id", s.get("subscription_id", "")),
-                    "name": s.get("name", "Module Plan"),
-                    "desc": s.get("desc", ""),
-                    "payment_period": s.get("payment_period", "monthly"),
-                    "price": s.get("price", 0),
+                    "subscription_id": get_field(s, "$id") or get_field(s, "subscription_id", ""),
+                    "name": get_field(s, "name", "Module Plan"),
+                    "desc": get_field(s, "desc", ""),
+                    "payment_period": get_field(s, "payment_period", "monthly"),
+                    "price": get_field(s, "price", 0),
                 }
                 for s in docs
             ]
@@ -195,4 +203,5 @@ def list_all_subscriptions():
         print(f"[WARN] list_all_subscriptions Appwrite error: {e}")
 
     return DEFAULT_SUBSCRIPTIONS
+
 

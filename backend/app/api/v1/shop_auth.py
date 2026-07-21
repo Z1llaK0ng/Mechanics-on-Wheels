@@ -14,7 +14,10 @@ from appwrite.id import ID
 from appwrite.query import Query
 from fastapi import APIRouter, Form, HTTPException, status
 
-from app.core.appwrite_client import databases, DB_ID, COL_SHOP, COL_MECHANICS, COL_ACTIVE_SUBS
+from app.core.appwrite_client import (
+    databases, DB_ID, COL_SHOP, COL_MECHANICS, COL_ACTIVE_SUBS,
+    get_docs, get_total, get_field
+)
 from app.core.security import verify_password, get_password_hash, create_access_token
 from app.config import settings
 from app.schemas.shop import (
@@ -36,7 +39,7 @@ def _subscribed_module_ids(shop_id: str) -> list[str]:
             collection_id=COL_ACTIVE_SUBS,
             queries=[Query.equal("shop_id", shop_id)]
         )
-        return [doc["subscription_id"] for doc in result.get("documents", [])]
+        return [get_field(doc, "subscription_id") for doc in get_docs(result) if get_field(doc, "subscription_id")]
     except Exception as e:
         print(f"[WARN] _subscribed_module_ids error: {e}")
         return []
@@ -62,7 +65,7 @@ def shop_register(payload: ShopCreate):
         collection_id=COL_SHOP,
         queries=[Query.equal("email", payload.email)]
     )
-    if existing_email["total"] > 0:
+    if get_total(existing_email) > 0:
         raise HTTPException(status_code=400, detail="A shop with this email already exists.")
 
     # Check name uniqueness
@@ -71,7 +74,7 @@ def shop_register(payload: ShopCreate):
         collection_id=COL_SHOP,
         queries=[Query.equal("shop_name", payload.shop_name)]
     )
-    if existing_name["total"] > 0:
+    if get_total(existing_name) > 0:
         raise HTTPException(status_code=400, detail="A shop with this name already exists.")
 
     doc = databases.create_document(
@@ -86,11 +89,12 @@ def shop_register(payload: ShopCreate):
         }
     )
 
+    doc_id = get_field(doc, "$id") or get_field(doc, "id", "")
     return ShopResponse(
-        shop_id=doc["$id"],
-        shop_name=doc["shop_name"],
-        location=doc["location"],
-        email=doc["email"],
+        shop_id=doc_id,
+        shop_name=get_field(doc, "shop_name", payload.shop_name),
+        location=get_field(doc, "location", payload.location),
+        email=get_field(doc, "email", payload.email),
     )
 
 
@@ -114,7 +118,7 @@ def shop_login(
                     collection_id=COL_SHOP,
                     queries=[Query.equal("email", username)]
                 )
-                docs = result.get("documents", [])
+                docs = get_docs(result)
             except Exception as e:
                 print(f"[ERROR] Shop admin query failed: {e}")
                 raise HTTPException(
@@ -122,27 +126,40 @@ def shop_login(
                     detail=f"Database error during shop lookup: {str(e)}"
                 )
 
-            if not docs or not verify_password(password, docs[0].get("hashed_password", "")):
+            if not docs:
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
                     detail="Incorrect email or password.",
                     headers={"WWW-Authenticate": "Bearer"},
                 )
+
             shop = docs[0]
+            stored_hash = get_field(shop, "hashed_password", "")
+            if not verify_password(password, stored_hash):
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Incorrect email or password.",
+                    headers={"WWW-Authenticate": "Bearer"},
+                )
+            
+            shop_doc_id = get_field(shop, "$id") or get_field(shop, "id", "")
+            shop_name = get_field(shop, "shop_name", "Shop Admin")
+            shop_email = get_field(shop, "email", username)
+            
             token = create_access_token(
-                data={"sub": shop.get("email", username), "role": "admin", "shop_id": shop["$id"]},
+                data={"sub": shop_email, "role": "admin", "shop_id": shop_doc_id},
                 expires_delta=token_expires,
             )
-            modules = _subscribed_module_ids(shop["$id"])
+            modules = _subscribed_module_ids(shop_doc_id)
             return ShopLoginResponse(
                 access_token=token,
                 user=ShopUserPayload(
-                    id=shop["$id"],
-                    name=shop.get("shop_name", "Shop Admin"),
-                    email=shop.get("email", username),
+                    id=shop_doc_id,
+                    name=shop_name,
+                    email=shop_email,
                     role="admin",
-                    shopId=shop["$id"],
-                    shopName=shop.get("shop_name", "Shop"),
+                    shopId=shop_doc_id,
+                    shopName=shop_name,
                     subscribedModules=modules,
                 ),
             )
@@ -169,7 +186,7 @@ def shop_login(
                         Query.equal("shop_id", shop_id),
                     ]
                 )
-                mec_docs = mec_result.get("documents", [])
+                mec_docs = get_docs(mec_result)
             except Exception as e:
                 print(f"[ERROR] Mechanic query failed: {e}")
                 raise HTTPException(
@@ -177,39 +194,53 @@ def shop_login(
                     detail=f"Database error during mechanic lookup: {str(e)}"
                 )
 
-            if not mec_docs or not verify_password(password, mec_docs[0].get("hashed_password", "")):
+            if not mec_docs:
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
                     detail="Incorrect email, password, or Shop ID.",
                     headers={"WWW-Authenticate": "Bearer"},
                 )
+            
             mechanic = mec_docs[0]
-            if not mechanic.get("active_status", False):
+            stored_hash = get_field(mechanic, "hashed_password", "")
+            if not verify_password(password, stored_hash):
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Incorrect email, password, or Shop ID.",
+                    headers={"WWW-Authenticate": "Bearer"},
+                )
+
+            if not get_field(mechanic, "active_status", False):
                 raise HTTPException(status_code=403, detail="Your account has been deactivated.")
+
+            mec_doc_id = get_field(mechanic, "$id") or get_field(mechanic, "id", "")
+            mec_email = get_field(mechanic, "email", username)
+            first_name = get_field(mechanic, "first_name", "")
+            last_name = get_field(mechanic, "last_name", "")
+            full_name = f"{first_name} {last_name}".strip()
 
             token = create_access_token(
                 data={
-                    "sub": mechanic.get("email", username),
+                    "sub": mec_email,
                     "role": "mechanic",
                     "shop_id": shop_id,
-                    "mechanic_id": mechanic["$id"],
+                    "mechanic_id": mec_doc_id,
                 },
                 expires_delta=token_expires,
             )
             modules = _subscribed_module_ids(shop_id)
-            full_name = f"{mechanic.get('first_name', '')} {mechanic.get('last_name', '')}".strip()
             return MechanicLoginResponse(
                 access_token=token,
                 user=MechanicUserPayload(
-                    id=mechanic["$id"],
+                    id=mec_doc_id,
                     name=full_name or "Mechanic",
-                    email=mechanic.get("email", username),
+                    email=mec_email,
                     role="mechanic",
                     shopId=shop_id,
-                    shopName=shop.get("shop_name", ""),
+                    shopName=get_field(shop, "shop_name", ""),
                     subscribedModules=modules,
-                    permittedModules=mechanic.get("permitted_modules", []),
-                    staffrole=mechanic.get("staffrole", "technician"),
+                    permittedModules=get_field(mechanic, "permitted_modules", []),
+                    staffrole=get_field(mechanic, "staffrole", "technician"),
                 ),
             )
 
