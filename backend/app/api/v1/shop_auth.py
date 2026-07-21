@@ -59,11 +59,14 @@ def shop_register(payload: ShopCreate):
     Create a new shop account.
     Returns the created shop. The string `shop_id` is the Appwrite document ID.
     """
+    clean_email = payload.email.strip()
+    clean_name = payload.shop_name.strip()
+
     # Check email uniqueness
     existing_email = databases.list_documents(
         database_id=DB_ID,
         collection_id=COL_SHOP,
-        queries=[Query.equal("email", payload.email)]
+        queries=[Query.equal("email", clean_email)]
     )
     if get_total(existing_email) > 0:
         raise HTTPException(status_code=400, detail="A shop with this email already exists.")
@@ -72,7 +75,7 @@ def shop_register(payload: ShopCreate):
     existing_name = databases.list_documents(
         database_id=DB_ID,
         collection_id=COL_SHOP,
-        queries=[Query.equal("shop_name", payload.shop_name)]
+        queries=[Query.equal("shop_name", clean_name)]
     )
     if get_total(existing_name) > 0:
         raise HTTPException(status_code=400, detail="A shop with this name already exists.")
@@ -82,9 +85,9 @@ def shop_register(payload: ShopCreate):
         collection_id=COL_SHOP,
         document_id=ID.unique(),
         data={
-            "shop_name": payload.shop_name,
-            "location": payload.location,
-            "email": payload.email,
+            "shop_name": clean_name,
+            "location": payload.location.strip(),
+            "email": clean_email,
             "hashed_password": get_password_hash(payload.password),
         }
     )
@@ -92,9 +95,9 @@ def shop_register(payload: ShopCreate):
     doc_id = get_field(doc, "$id") or get_field(doc, "id", "")
     return ShopResponse(
         shop_id=doc_id,
-        shop_name=get_field(doc, "shop_name", payload.shop_name),
+        shop_name=get_field(doc, "shop_name", clean_name),
         location=get_field(doc, "location", payload.location),
-        email=get_field(doc, "email", payload.email),
+        email=get_field(doc, "email", clean_email),
     )
 
 
@@ -108,6 +111,7 @@ def shop_login(
     shop_id: Optional[str] = Form(None),
 ):
     token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+    clean_username = username.strip()
 
     try:
         # ── Admin ─────────────────────────────────────────────────────────────────
@@ -116,35 +120,37 @@ def shop_login(
                 result = databases.list_documents(
                     database_id=DB_ID,
                     collection_id=COL_SHOP,
-                    queries=[Query.equal("email", username)]
+                    queries=[Query.equal("email", clean_username)]
                 )
                 docs = get_docs(result)
             except Exception as e:
-                print(f"[ERROR] Shop admin query failed: {e}")
+                print(f"[ERROR] Shop admin query failed for '{clean_username}': {e}")
                 raise HTTPException(
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                     detail=f"Database error during shop lookup: {str(e)}"
                 )
 
             if not docs:
+                print(f"[WARN] No shop account found matching email: '{clean_username}'")
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail="Incorrect email or password.",
+                    detail="No shop account found with this email address. Please check your email or register a new shop.",
                     headers={"WWW-Authenticate": "Bearer"},
                 )
 
             shop = docs[0]
             stored_hash = get_field(shop, "hashed_password", "")
             if not verify_password(password, stored_hash):
+                print(f"[WARN] Password verification failed for shop admin email: '{clean_username}'")
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail="Incorrect email or password.",
+                    detail="Incorrect password. Please verify your password and try again.",
                     headers={"WWW-Authenticate": "Bearer"},
                 )
             
             shop_doc_id = get_field(shop, "$id") or get_field(shop, "id", "")
             shop_name = get_field(shop, "shop_name", "Shop Admin")
-            shop_email = get_field(shop, "email", username)
+            shop_email = get_field(shop, "email", clean_username)
             
             token = create_access_token(
                 data={"sub": shop_email, "role": "admin", "shop_id": shop_doc_id},
@@ -169,12 +175,14 @@ def shop_login(
             if not shop_id:
                 raise HTTPException(status_code=422, detail="shop_id is required for mechanic login.")
 
+            clean_shop_id = shop_id.strip()
+
             # Validate shop exists
             try:
-                shop = databases.get_document(DB_ID, COL_SHOP, shop_id)
+                shop = databases.get_document(DB_ID, COL_SHOP, clean_shop_id)
             except Exception as e:
-                print(f"[ERROR] Shop get_document failed: {e}")
-                raise HTTPException(status_code=404, detail=f"Shop not found: {str(e)}")
+                print(f"[ERROR] Shop get_document failed for shop_id '{clean_shop_id}': {e}")
+                raise HTTPException(status_code=404, detail=f"Shop not found for ID: {clean_shop_id}")
 
             # Find mechanic by email + shop
             try:
@@ -182,19 +190,20 @@ def shop_login(
                     database_id=DB_ID,
                     collection_id=COL_MECHANICS,
                     queries=[
-                        Query.equal("email", username),
-                        Query.equal("shop_id", shop_id),
+                        Query.equal("email", clean_username),
+                        Query.equal("shop_id", clean_shop_id),
                     ]
                 )
                 mec_docs = get_docs(mec_result)
             except Exception as e:
-                print(f"[ERROR] Mechanic query failed: {e}")
+                print(f"[ERROR] Mechanic query failed for '{clean_username}': {e}")
                 raise HTTPException(
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                     detail=f"Database error during mechanic lookup: {str(e)}"
                 )
 
             if not mec_docs:
+                print(f"[WARN] No mechanic account found for email: '{clean_username}' in shop '{clean_shop_id}'")
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
                     detail="Incorrect email, password, or Shop ID.",
@@ -204,9 +213,10 @@ def shop_login(
             mechanic = mec_docs[0]
             stored_hash = get_field(mechanic, "hashed_password", "")
             if not verify_password(password, stored_hash):
+                print(f"[WARN] Password verification failed for mechanic email: '{clean_username}'")
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail="Incorrect email, password, or Shop ID.",
+                    detail="Incorrect password. Please try again.",
                     headers={"WWW-Authenticate": "Bearer"},
                 )
 
