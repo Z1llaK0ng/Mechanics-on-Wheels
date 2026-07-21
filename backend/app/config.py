@@ -21,7 +21,7 @@ class Settings(BaseSettings):
     APP_NAME: str = "CarrySpanner API"
     DEBUG: bool = True
     API_V1_PREFIX: str = "/api/v1"
-    CORS_ORIGINS: str = "http://localhost:5173,http://localhost:4173,http://127.0.0.1:5173,http://127.0.0.1:4173,https://mechanics-on-wheels.pages.dev"
+    CORS_ORIGINS: str = "http://localhost:5173,http://localhost:4173,http://127.0.0.1:5173,http://127.0.0.1:4173,https://mechanics-on-wheels.pages.dev,https://www.carryspanner.com,https://carryspanner.com"
 
     # Hubtel API Configuration
     HUBTEL_CLIENT_ID: str = ""
