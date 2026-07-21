@@ -15,19 +15,27 @@ from appwrite.query import Query
 from app.config import settings
 from app.core.appwrite_client import databases, DB_ID, COL_MECHANICS
 
-# Password hashing
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+import bcrypt
 
 # OAuth2 scheme
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.API_V1_PREFIX}/auth/login")
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    return pwd_context.verify(plain_password, hashed_password)
+    try:
+        pw_bytes = plain_password.encode('utf-8')[:72]
+        hash_bytes = hashed_password.encode('utf-8')
+        return bcrypt.checkpw(pw_bytes, hash_bytes)
+    except Exception as e:
+        print(f"[WARN] verify_password error: {e}")
+        return False
 
 
 def get_password_hash(password: str) -> str:
-    return pwd_context.hash(password)
+    pw_bytes = password.encode('utf-8')[:72]
+    salt = bcrypt.gensalt()
+    return bcrypt.hashpw(pw_bytes, salt).decode('utf-8')
+
 
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:

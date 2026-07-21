@@ -30,12 +30,17 @@ router = APIRouter(prefix="/auth", tags=["Shop Authentication"])
 
 def _subscribed_module_ids(shop_id: str) -> list[str]:
     """Return subscription IDs for a shop from active_subs collection."""
-    result = databases.list_documents(
-        database_id=DB_ID,
-        collection_id=COL_ACTIVE_SUBS,
-        queries=[Query.equal("shop_id", shop_id)]
-    )
-    return [doc["subscription_id"] for doc in result["documents"]]
+    try:
+        result = databases.list_documents(
+            database_id=DB_ID,
+            collection_id=COL_ACTIVE_SUBS,
+            queries=[Query.equal("shop_id", shop_id)]
+        )
+        return [doc["subscription_id"] for doc in result.get("documents", [])]
+    except Exception as e:
+        print(f"[WARN] _subscribed_module_ids error: {e}")
+        return []
+
 
 
 # ── Register shop ─────────────────────────────────────────────────────────────
