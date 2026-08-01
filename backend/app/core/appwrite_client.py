@@ -59,17 +59,44 @@ def get_total(res) -> int:
 
 
 def get_field(doc, key: str, default=None):
-    """Safely extract a field from an Appwrite Document object or dict."""
+    """Safely extract a field from an Appwrite Document object or dict, including nested doc.data."""
     if doc is None:
         return default
+
+    # 1. If doc is dict
     if isinstance(doc, dict):
+        if key in doc:
+            return doc[key]
+        if "data" in doc and isinstance(doc["data"], dict) and key in doc["data"]:
+            return doc["data"][key]
         return doc.get(key, default)
+
+    # 2. Check doc.data attribute on SDK Document object
+    if hasattr(doc, "data") and isinstance(getattr(doc, "data"), dict):
+        data_dict = getattr(doc, "data")
+        if key in data_dict:
+            return data_dict[key]
+
+    # 3. Check direct attribute on SDK object ($id, id, etc.)
     if hasattr(doc, key):
-        val = getattr(doc, key, default)
+        val = getattr(doc, key, None)
         if val is not None:
             return val
+
+    # 4. Fallback dict indexing
     try:
-        return doc[key]
+        val = doc[key]
+        if val is not None:
+            return val
     except Exception:
-        return default
+        pass
+
+    try:
+        if "data" in doc and isinstance(doc["data"], dict) and key in doc["data"]:
+            return doc["data"][key]
+    except Exception:
+        pass
+
+    return default
+
 

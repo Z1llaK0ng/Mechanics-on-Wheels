@@ -57,13 +57,14 @@ def debug_auth(email: str = "admin@chem1c.com"):
         if not docs:
             return {"status": "not_found", "docs_count": 0}
         shop = docs[0]
-        shop_raw = shop.to_dict() if hasattr(shop, "to_dict") else dict(shop)
+        h = get_field(shop, "hashed_password", "")
+        verified = verify_password("chem1c22", h)
         return {
             "status": "found",
-            "shop_raw_keys": list(shop_raw.keys()) if isinstance(shop_raw, dict) else [],
-            "shop_raw": {k: v for k, v in shop_raw.items() if k != "hashed_password"},
-            "has_hashed_pass": "hashed_password" in shop_raw,
-            "pass_len": len(shop_raw.get("hashed_password", "")),
+            "shop_name": get_field(shop, "shop_name", ""),
+            "hash_len": len(h),
+            "hash_starts_with": h[:10] if h else "",
+            "verified_chem1c22": verified
         }
     except Exception as e:
         return {"status": "error", "error": str(e)}
