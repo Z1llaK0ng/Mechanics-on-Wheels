@@ -1,4 +1,4 @@
-﻿# CarrySpanner — Postman API Testing Guide
+# CarrySpanner — Postman API Testing Guide
 
 > **Base URL:** `http://localhost:8000`  
 > **API Prefix:** `/api/v1`  
@@ -23,7 +23,7 @@
 - **URL:** `http://localhost:8000/`
 - **Expected Response:** `200 OK`
 ```json
-{ "message": "Welcome to MechanicERP API", "version": "1.0.0", "status": "operational" }
+{ "message": "Welcome to CarrySpanner API", "version": "1.0.6", "status": "operational" }
 ```
 
 ### 2. Health Check

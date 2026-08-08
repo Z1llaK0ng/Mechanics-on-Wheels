@@ -57,7 +57,7 @@ Mechanics-on-Wheels/
 │   ├── migrations.py          # Incremental schema changes and data seeding
 │   └── .env                   # Credentials for the schema scripts
 │
-└── tests/                     # Cypress (frontend) and pytest (backend) test suites
+└── tests/                     # Playwright (frontend) and pytest (backend) test suites
 ```
 
 ---
@@ -66,7 +66,7 @@ Mechanics-on-Wheels/
 
 | Tool | Minimum Version | Notes |
 | :--- | :--- | :--- |
-| Python | 3.11+ | Backend runtime |
+| Python | 3.11+ | Backend runtime & test execution |
 | Node.js | 18+ | Frontend build tooling |
 | npm | 9+ | Bundled with Node.js |
 | Appwrite project | Any tier | Free tier is sufficient; create at [appwrite.io](https://appwrite.io) |
@@ -242,15 +242,16 @@ pip install pytest httpx
 pytest ../tests/backend/
 ```
 
-### Frontend (Cypress E2E)
+### Frontend (Playwright E2E)
 
 ```bash
-# From the project root — Cypress is installed at the root level
-npm install
-npx cypress open
-```
+# Install Playwright Python package
+pip install playwright
+playwright install chromium
 
-Select **E2E Testing** and run the specs in `tests/frontend/`.
+# Execute frontend integration tests
+python tests/frontend/test_frontend.py
+```
 
 ---
 
